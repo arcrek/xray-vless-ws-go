@@ -1,0 +1,174 @@
+#!/usr/bin/env bash
+# xray-vless-ws-go quickstart installer.
+#
+# What it does:
+#   1. Asks for the .env values interactively (Enter keeps the default).
+#   2. Downloads the matching prebuilt binary + SHA256SUMS from this repo's
+#      latest GitHub Release and verifies the checksum.
+#   3. Runs the binary in the foreground.
+#
+# The repo is private, so downloading needs either the `gh` CLI (already
+# authenticated) or a GITHUB_TOKEN / classic PAT with `repo` scope (private
+# repos require a token even for read-only release-asset access — a plain
+# `curl` against the public download URL will just 404).
+#
+# Usage:
+#   ./install.sh                # interactive, installs into ./xrayws-run
+#   INSTALL_DIR=/opt/xrayws ./install.sh
+#   GITHUB_TOKEN=ghp_xxx ./install.sh   # non-interactive download auth
+
+set -euo pipefail
+
+REPO="${REPO:-arcrek/xray-vless-ws-go}"
+INSTALL_DIR="${INSTALL_DIR:-$PWD/xrayws-run}"
+RELEASE_TAG="${RELEASE_TAG:-latest}"
+
+# ---------------------------------------------------------------------------
+# 1. Collect .env values
+# ---------------------------------------------------------------------------
+
+ask() {
+  # ask <var_name> <prompt> <default>
+  local __name="$1" __prompt="$2" __default="$3" __reply
+  read -r -p "$__prompt [$__default]: " __reply || true
+  printf -v "$__name" '%s' "${__reply:-$__default}"
+}
+
+echo "== xray-vless-ws-go quickstart =="
+echo "Enter to keep the shown default."
+echo
+
+ask PORT             "Local listen address (host:port)" "127.0.0.1:8888"
+ask XRAY_UUID        "VLESS client UUID (blank = auto-generate on first run)" ""
+ask FAKE_SNI         "Fake SNI list (name#label,name#label,...)" "api24-normal-alisg.tiktokv.com#Tiktok,vnpt.theworkpc.com#Free VNPT"
+ask WS_PATH          "WebSocket path" "/tiktok4g"
+ask TRANSPORT        "Transport" "websocket"
+ask WEBHOOK_URL      "Webhook URL for link updates (blank = disabled)" ""
+
+echo
+echo "Tunnel mode: leave both blank for a zero-setup quick tunnel (dev/test)."
+echo "For production, set a named Cloudflare Tunnel token instead."
+ask TUNNEL_TOKEN     "Cloudflare named tunnel token (blank = quick tunnel)" ""
+if [ -n "$TUNNEL_TOKEN" ]; then
+  ask WS_HOST        "Public hostname configured for that tunnel" ""
+else
+  WS_HOST="trycloudflare.com"
+fi
+
+mkdir -p "$INSTALL_DIR"
+ENV_FILE="$INSTALL_DIR/.env"
+
+cat > "$ENV_FILE" <<EOF
+PORT=$PORT
+XRAY_UUID=$XRAY_UUID
+FAKE_SNI=$FAKE_SNI
+WS_PATH=$WS_PATH
+WS_HOST=$WS_HOST
+TRANSPORT=$TRANSPORT
+WEBHOOK_URL=$WEBHOOK_URL
+TUNNEL_TOKEN=$TUNNEL_TOKEN
+EOF
+
+echo
+echo "Wrote $ENV_FILE"
+
+# ---------------------------------------------------------------------------
+# 2. Detect platform and download the matching release binary
+# ---------------------------------------------------------------------------
+
+os="$(uname -s)"
+arch="$(uname -m)"
+
+case "$os" in
+  Linux)  goos=linux ;;
+  Darwin) goos=darwin ;;
+  *) echo "Unsupported OS: $os (use the Windows binary manually for Windows)"; exit 1 ;;
+esac
+
+case "$arch" in
+  x86_64|amd64) goarch=amd64 ;;
+  aarch64|arm64) goarch=arm64 ;;
+  *) echo "Unsupported architecture: $arch"; exit 1 ;;
+esac
+
+asset="xrayws-${goos}-${goarch}"
+bin_path="$INSTALL_DIR/xrayws"
+
+echo
+echo "Target asset: $asset (release: $RELEASE_TAG)"
+
+download_with_gh() {
+  command -v gh >/dev/null 2>&1 || return 1
+  gh release download "$RELEASE_TAG" -R "$REPO" \
+    -p "$asset" -p "SHA256SUMS" -D "$INSTALL_DIR" --clobber
+}
+
+download_with_curl() {
+  local token="${GITHUB_TOKEN:-}"
+  if [ -z "$token" ]; then
+    read -r -s -p "GitHub token (repo scope, needed for private-repo release assets): " token
+    echo
+  fi
+  [ -n "$token" ] || { echo "No token provided, cannot download from a private repo." >&2; return 1; }
+
+  command -v jq >/dev/null 2>&1 || { echo "jq is required for the curl fallback path (or install 'gh' instead)." >&2; return 1; }
+
+  local api="https://api.github.com/repos/$REPO/releases"
+  [ "$RELEASE_TAG" = "latest" ] && api="$api/latest" || api="$api/tags/$RELEASE_TAG"
+
+  local release_json
+  release_json="$(curl -fsSL -H "Authorization: token $token" -H "Accept: application/vnd.github+json" "$api")"
+
+  for name in "$asset" "SHA256SUMS"; do
+    local asset_id
+    asset_id="$(echo "$release_json" | jq -r --arg n "$name" '.assets[] | select(.name==$n) | .id')"
+    [ -n "$asset_id" ] && [ "$asset_id" != "null" ] || { echo "Asset '$name' not found in release $RELEASE_TAG." >&2; return 1; }
+    curl -fsSL -H "Authorization: token $token" -H "Accept: application/octet-stream" \
+      "https://api.github.com/repos/$REPO/releases/assets/$asset_id" -o "$INSTALL_DIR/$name"
+  done
+}
+
+if ! download_with_gh; then
+  echo "'gh' CLI not available or failed, falling back to curl + GitHub API..."
+  download_with_curl
+fi
+
+mv "$INSTALL_DIR/$asset" "$bin_path"
+chmod +x "$bin_path"
+
+# ---------------------------------------------------------------------------
+# 3. Verify checksum
+# ---------------------------------------------------------------------------
+
+sums_file="$INSTALL_DIR/SHA256SUMS"
+if [ -f "$sums_file" ]; then
+  expected="$(grep " $asset\$" "$sums_file" | awk '{print $1}')"
+  if [ -z "$expected" ]; then
+    echo "WARNING: $asset not listed in SHA256SUMS, skipping verification." >&2
+  else
+    if command -v sha256sum >/dev/null 2>&1; then
+      actual="$(sha256sum "$bin_path" | awk '{print $1}')"
+    else
+      actual="$(shasum -a 256 "$bin_path" | awk '{print $1}')"
+    fi
+    if [ "$expected" != "$actual" ]; then
+      echo "Checksum mismatch for $asset! expected=$expected actual=$actual" >&2
+      exit 1
+    fi
+    echo "Checksum verified OK."
+  fi
+else
+  echo "WARNING: SHA256SUMS not downloaded, skipping verification." >&2
+fi
+
+# ---------------------------------------------------------------------------
+# 4. Run
+# ---------------------------------------------------------------------------
+
+echo
+echo "Installed: $bin_path"
+echo "Config:    $ENV_FILE"
+echo
+echo "Starting xrayws..."
+cd "$INSTALL_DIR"
+exec ./xrayws

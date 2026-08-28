@@ -58,12 +58,26 @@ run directly under Termux either (the Python PoC's own downloader flags
 this — Termux users are pointed at `pkg install cloudflared` instead), so
 this is not a regression for the realistic Android/Termux use case.
 
-## Run
+## Quickstart (install script)
+
+```
+./install.sh
+```
+
+Prompts for the `.env` values (Enter keeps the default), downloads the
+matching prebuilt binary + `SHA256SUMS` from this repo's latest GitHub
+Release, verifies the checksum, and runs it in the foreground. See
+`install.sh`'s header comment for env-var overrides (`INSTALL_DIR`,
+`GITHUB_TOKEN`, `RELEASE_TAG`) and the private-repo auth note (`gh` CLI or a
+`repo`-scoped token — plain unauthenticated `curl` 404s on private release
+assets).
+
+## Run (manual)
 
 ```
 ./bin/xrayws                    # foreground, quick tunnel or named tunnel per .env
 ./bin/xrayws --log-port=0       # disable the embedded log viewer
-./bin/xrayws --ci-mode          # GitHub Actions CI bridge mode (see below)
+./bin/xrayws --ci-mode          # GitHub Actions CI bridge mode — see note below
 ```
 
 On first run, a default `.env` is generated (same defaults as the Python
@@ -71,6 +85,12 @@ PoC's `.env.example`, minus the removed `ENABLE_WARP` key). Set
 `TUNNEL_TOKEN` + `WS_HOST` for a named (production) tunnel, or leave both
 empty for a zero-setup quick tunnel (dev/test only — see the plan's decision
 log #7).
+
+`--ci-mode` (running the proxy itself inside a GitHub Actions runner via the
+`ENV_CONFIG` secret) still exists in the code, but `.github/workflows/`
+no longer invokes it — the Action now only builds and publishes release
+binaries (see below). Run `--ci-mode` manually if you still want that
+free-runner-as-host deployment.
 
 ## Startup latency
 
@@ -98,7 +118,16 @@ Mirrors `github-workflows.py`: exports the `ENV_CONFIG` GitHub Secret to
 `.env`, watches `frp_info.config`/`frp_info.json` for changes and
 force-pushes them to the `config` branch, optionally self re-dispatches the
 workflow after 5h (`BRIDGE_WORKFLOWS=true`), and self-exits after 5h40 to
-stay under the Actions 6h job limit. See `.github/workflows/run.yml`.
+stay under the Actions 6h job limit. No longer wired into
+`.github/workflows/` — see the note in Run (manual) above.
+
+## Build & Release Action (`.github/workflows/build.yml`)
+
+Triggered by pushing a `v*` tag (or manually via `workflow_dispatch`):
+cross-compiles all platforms (`make build-all`), generates `SHA256SUMS`,
+and publishes them to a GitHub Release. `install.sh` consumes that Release.
+This replaces the old `run.yml`, which used to run the proxy itself inside
+the Actions runner.
 
 Shells out to the `git` CLI for the branch push (not `go-git`) — see the
 plan's decision log #11 for the tradeoff (this is the one place the binary
