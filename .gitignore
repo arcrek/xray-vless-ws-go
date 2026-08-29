@@ -1,0 +1,10 @@
+/bin/
+*.exe
+.env
+config.json
+config.yml
+frp_info.config
+frp_info.json
+xray.zip
+cloudflared
+wgcf.xray.json

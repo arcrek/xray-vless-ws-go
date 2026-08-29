@@ -1,0 +1,63 @@
+name: Build & Release binaries
+
+# Build-only workflow — replaces the old run.yml, which used to run the
+# proxy inside the Actions runner itself (--ci-mode, ENV_CONFIG secret).
+# That deployment model is gone: the proxy now runs on the user's own
+# machine via install.sh, which pulls a prebuilt binary from a GitHub
+# Release. This workflow's only job is producing that Release.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to (re)build, e.g. v1.0.0"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Cross-compile all platforms
+        run: make build-all
+
+      - name: Generate checksums
+        working-directory: bin
+        run: sha256sum * > SHA256SUMS
+
+      - name: Resolve release tag
+        id: tag
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+        run: |
+          if [ -n "$INPUT_TAG" ]; then
+            echo "tag=$INPUT_TAG" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          files: |
+            bin/xrayws-linux-amd64
+            bin/xrayws-linux-arm64
+            bin/xrayws-windows-amd64.exe
+            bin/xrayws-darwin-amd64
+            bin/xrayws-darwin-arm64
+            bin/SHA256SUMS
+          generate_release_notes: true

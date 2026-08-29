@@ -1,0 +1,10 @@
+body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: #f0f2f5; margin: 0; padding: 20px; }
+.card { background: white; padding: 1.5rem; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 950px; margin: auto; display: flex; flex-direction: column; max-height: 90vh; }
+h2 { border-bottom: 2px solid #eee; padding-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+#log-container { background: #1e1e1e; color: #d4d4d4; padding: 15px; border-radius: 8px; overflow-y: auto; font-family: monospace; flex-grow: 1; height: 500px; }
+.log-entry { margin-bottom: 4px; border-bottom: 1px solid #2d2d2d; padding-bottom: 2px; }
+.timestamp { color: #888; margin-right: 8px; }
+.type-info { color: #007bff; font-weight: bold; }
+.type-error { color: #ff4757; font-weight: bold; }
+.type-success { color: #2ed573; font-weight: bold; }
+pre { margin: 5px 0; color: #f1fa8c; background: #282a36; padding: 8px; border-radius: 4px; }
