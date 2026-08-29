@@ -13,7 +13,7 @@ planning notes that produced it (never shipped in this repo).
 | `internal/xraycore` | Embedded xray-core lifecycle + JSON config builder |
 | `internal/tunnel` | cloudflared download, spawn, hostname/ready detection, restart supervision |
 | `internal/linkgen` | `vless://` link building, `frp_info.config`/`.json` writer, webhook delivery |
-| `internal/logserver` | Embedded HTTP log viewer (`go:embed` assets from `web/logserver`) |
+| `internal/logserver` | Embedded HTTP dashboard: realtime log viewer + `/stats` (xray/tunnel status, traffic throughput) — `go:embed` assets from `web/logserver` |
 | `internal/ci` | GitHub Actions CI bridge (export secret, watch+upload, re-dispatch) |
 | `internal/cfdeploy` | Cloudflare Worker bridge auto-deploy via the Cloudflare REST API |
 
@@ -112,6 +112,7 @@ See `.env.example` for the full annotated template. Summary:
 | `CLOUDFLARE_ACCOUNT_ID` | `""` (auto-resolve) | Only needed if the token can see more than one account |
 | `DOMAIN` | `""` (feature off) | Zone apex only, e.g. `example.com` — **not** `vless.example.com`; the app prepends the `vless.` prefix itself |
 | `WORKER_PASSWORD` | random on first run | Becomes the deployed Worker's `/setapi?password=` value |
+| `LOG_PASSWORD` | random on first run | Basic Auth for the dashboard/log viewer (`--log-port`, default 9999). Required whenever the dashboard is enabled — see decision log below |
 
 ### `CLOUDFLARE_API_TOKEN` permissions
 
@@ -121,6 +122,52 @@ See `.env.example` for the full annotated template. Summary:
 | Workers KV Storage | Account | Edit |
 | Workers Routes | Zone | Edit |
 | Zone | Zone | Read |
+
+## Decision log — system dashboard (`internal/logserver` /stats)
+
+Full plan: `plans/260829-1618-system-dashboard/` (red-teamed, validated,
+implemented 2026-08-29).
+
+- **Traffic source**: xray-core's own `app/stats.Manager`, in-process via
+  `core.Instance.GetFeature`. Every VLESS client (every port) shares one
+  `email: "default"` — xray-core's dispatcher naturally sums all ports into
+  one aggregate counter pair (`Engine.Traffic()`), since this is a
+  single-user deployment (no per-inbound/per-client breakdown).
+- **Counters registered eagerly** at `Engine.New()` time
+  (`GetOrRegisterCounter`), not looked up lazily per poll — `ok` from
+  `Traffic()` is stable for the whole process lifetime once stats activate,
+  avoiding a false-negative on partial registration.
+- **Tunnel status**: `tunnel.Supervisor.OnReady` fires on every `/ready`
+  poll outcome *and* on all three `watch()` exit paths (process crash,
+  closed poll channel, normal poll) — a crash mid-run must not leave the
+  dashboard showing a stale "ready" state through the restart/backoff cycle.
+- **Update mechanism**: `setInterval` + `fetch("/stats")` every 2s from the
+  browser, matching the existing `/logs` 1s-poll idiom — no WebSocket/SSE,
+  no added frontend dependency (plain `<canvas>` sparkline).
+- **History**: fixed 150-sample in-memory ring (5 min @ 2s), lost on
+  restart — no DB, matches this repo's existing `Ring` (logs) pattern.
+- **`LOG_PASSWORD` is now required** whenever `--log-port > 0` (the
+  default) — `/stats` exposes live traffic rates and the tunnel hostname,
+  materially more sensitive than log text alone. `fromEnv()` falls back to
+  a freshly generated random secret (not a fixed empty default) when the
+  key is absent, so both a brand-new `.env` and an existing pre-dashboard
+  `.env` upgrading to this binary still start — same pattern as
+  `WORKER_PASSWORD`/`XRAY_UUID`. `--log-port=0` remains a valid
+  no-password way to disable the dashboard entirely.
+- **Xray liveness (`xray_up`)**: starts as a boot flag (`SetXrayUp`, reset
+  on graceful shutdown), then a 5s ticker in `main.go` upgrades it to a
+  real signal via `xraycore.ProbeListener` (raw TCP connect-and-close
+  against the first configured VLESS port) + `StatusStore.RecordLiveness`,
+  which debounces: 2 consecutive failed probes to flip `false`, 1 success
+  to flip back `true` immediately.
+- **Known limitation, accepted as-is (code review, 2026-08-29)**: tunnel
+  hostname (`OnHostname`, parsed from cloudflared stdout) and tunnel-ready
+  status (`OnReady`, polled from `/ready`) update via two independent
+  goroutines. On a quick-tunnel crash/reconnect, the dashboard can briefly
+  show `tunnel_ready: true` paired with the previous session's hostname
+  until the new one is parsed. Self-corrects within one poll/parse cycle;
+  not fixed — synchronizing the two would add real complexity for a
+  sub-second, self-healing local-dashboard display glitch.
 
 ## Known limitations
 

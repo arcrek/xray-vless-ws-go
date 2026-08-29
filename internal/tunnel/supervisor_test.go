@@ -259,6 +259,81 @@ func TestSupervisorGracefulShutdownWaitsForExit(t *testing.T) {
 	}
 }
 
+// TestSupervisorOnReadyFiresOnReadyPollAndChannelClose exercises watch()
+// directly (package-internal call, no real subprocess needed) to cover the
+// red-team-identified stale-status gap: OnReady must fire on every
+// successful /ready poll outcome AND once more with Ready:false when the
+// ready-poll channel closes ("!ok" early-return path) — not just on the
+// happy-path poll.
+func TestSupervisorOnReadyFiresOnReadyPollAndChannelClose(t *testing.T) {
+	cfg := testSupervisorConfig(t)
+	sup := NewSupervisor(cfg, "unused-bin", t.TempDir())
+
+	var mu sync.Mutex
+	var states []ReadyState
+	sup.OnReady = func(s ReadyState) {
+		mu.Lock()
+		defer mu.Unlock()
+		states = append(states, s)
+	}
+
+	readyCh := make(chan ReadyState, 1)
+	readyCh <- ReadyState{Ready: true, ReadyConnections: 3}
+	close(readyCh) // next receive returns ok=false, driving the "!ok" path
+
+	exitCh := make(chan error) // never fires — forces the readyCh branch
+	handle := &Handle{Named: false}
+
+	reason := sup.watch(context.Background(), exitCh, readyCh, handle)
+	if reason != "ready-poll channel closed" {
+		t.Errorf("watch() reason = %q, want %q", reason, "ready-poll channel closed")
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(states) != 2 {
+		t.Fatalf("expected 2 OnReady calls (one ready poll + one channel-close), got %d: %+v", len(states), states)
+	}
+	if !states[0].Ready || states[0].ReadyConnections != 3 {
+		t.Errorf("first OnReady = %+v, want Ready:true ReadyConnections:3 (the polled state)", states[0])
+	}
+	if states[1].Ready {
+		t.Errorf("second OnReady = %+v, want Ready:false (the channel-close fallback)", states[1])
+	}
+}
+
+// TestSupervisorOnReadyFiresOnProcessExit covers watch()'s exitCh
+// early-return path: a crash must also report Ready:false, not just leave
+// the dashboard on the last-known (possibly stale "ready") state.
+func TestSupervisorOnReadyFiresOnProcessExit(t *testing.T) {
+	cfg := testSupervisorConfig(t)
+	sup := NewSupervisor(cfg, "unused-bin", t.TempDir())
+
+	var mu sync.Mutex
+	var states []ReadyState
+	sup.OnReady = func(s ReadyState) {
+		mu.Lock()
+		defer mu.Unlock()
+		states = append(states, s)
+	}
+
+	exitCh := make(chan error, 1)
+	exitCh <- fmt.Errorf("boom")
+	var readyCh chan ReadyState // nil — never fires, forces the exitCh branch
+	handle := &Handle{Named: false}
+
+	reason := sup.watch(context.Background(), exitCh, readyCh, handle)
+	if !strings.Contains(reason, "boom") {
+		t.Errorf("watch() reason = %q, want it to contain %q", reason, "boom")
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(states) != 1 || states[0].Ready {
+		t.Fatalf("expected exactly 1 OnReady(Ready:false) call, got %+v", states)
+	}
+}
+
 // TestSupervisorGracefulShutdownEscalatesToKill guards the Kill()
 // escalation path: a subprocess that does NOT honor a graceful Terminate()
 // must still be forced to exit (and Run() must still return) within

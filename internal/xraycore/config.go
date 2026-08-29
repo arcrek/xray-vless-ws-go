@@ -40,6 +40,7 @@ func BuildConfig(cfg *config.Config) ([]byte, error) {
 					{
 						"id":    cfg.XrayUUID,
 						"level": 0,
+						"email": statsEmail,
 					},
 				},
 				"decryption": "none",
@@ -68,6 +69,15 @@ func BuildConfig(cfg *config.Config) ([]byte, error) {
 				},
 			},
 		},
+		"policy": map[string]any{
+			"levels": map[string]any{
+				"0": map[string]any{
+					"statsUserUplink":   true,
+					"statsUserDownlink": true,
+				},
+			},
+		},
+		"stats": map[string]any{},
 	}
 
 	out, err := json.MarshalIndent(xrayConfig, "", "  ")

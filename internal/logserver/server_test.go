@@ -88,6 +88,58 @@ func TestServerBasicAuth(t *testing.T) {
 	}
 }
 
+func TestServerServesStats(t *testing.T) {
+	addr := freeLocalAddr(t)
+	s := New(addr, "secret", 500)
+	s.Status.SetXrayUp(true)
+	s.Status.SetTunnelStatus(true, 1)
+	s.Status.SetHostname("test.trycloudflare.com")
+	s.Status.RecordTraffic(100, 200)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go s.Start(ctx)
+	waitForServer(t, addr)
+
+	// Same auth as /logs — unauthenticated request is rejected.
+	resp, err := http.Get(fmt.Sprintf("http://%s/stats", addr))
+	if err != nil {
+		t.Fatalf("GET /stats: %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("unauthenticated GET /stats status = %d, want 401", resp.StatusCode)
+	}
+
+	req, _ := http.NewRequest(http.MethodGet, fmt.Sprintf("http://%s/stats", addr), nil)
+	req.SetBasicAuth("anyuser", "secret")
+	resp2, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("authenticated GET /stats: %v", err)
+	}
+	defer resp2.Body.Close()
+	if resp2.StatusCode != http.StatusOK {
+		t.Fatalf("authenticated GET /stats status = %d, want 200", resp2.StatusCode)
+	}
+
+	var snap StatsSnapshot
+	if err := json.NewDecoder(resp2.Body).Decode(&snap); err != nil {
+		t.Fatalf("decoding /stats response: %v", err)
+	}
+	if !snap.XrayUp || !snap.TunnelReady || snap.ReadyConnections != 1 {
+		t.Errorf("status fields = %+v, want XrayUp/TunnelReady true, ReadyConnections=1", snap)
+	}
+	if snap.Hostname != "test.trycloudflare.com" {
+		t.Errorf("hostname = %q, want test.trycloudflare.com", snap.Hostname)
+	}
+	if snap.UplinkTotal != 100 || snap.DownlinkTotal != 200 {
+		t.Errorf("totals = (%d, %d), want (100, 200)", snap.UplinkTotal, snap.DownlinkTotal)
+	}
+	if snap.History == nil {
+		t.Error("history decoded as nil, want a non-nil (possibly empty) slice — [] must not serialize as null")
+	}
+}
+
 func waitForServer(t *testing.T, addr string) {
 	t.Helper()
 	deadline := time.Now().Add(3 * time.Second)

@@ -2,10 +2,30 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <title>Hệ thống Log Realtime</title>
+    <title>Dashboard Hệ thống</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <div class="card">
+        <h2>Trạng thái hệ thống</h2>
+        <div class="status-grid">
+            <div class="status-item"><span class="dot" id="dot-xray"></span> Xray: <span id="xray-state">—</span></div>
+            <div class="status-item"><span class="dot" id="dot-tunnel"></span> Tunnel: <span id="tunnel-state">—</span></div>
+            <div class="status-item">Kết nối: <span id="ready-connections">—</span></div>
+            <div class="status-item">Hostname: <span id="hostname">—</span></div>
+            <!-- label says "(dashboard)" — uptime_sec is the dashboard
+                 process's own clock, not "time the proxy has been up" -->
+            <div class="status-item">Uptime (dashboard): <span id="uptime">—</span></div>
+        </div>
+    </div>
+    <div class="card">
+        <h2>Throughput</h2>
+        <div class="throughput-numbers">
+            <div>↑ <span id="up-bps">0 B/s</span></div>
+            <div>↓ <span id="down-bps">0 B/s</span></div>
+        </div>
+        <canvas id="sparkline" width="600" height="80"></canvas>
+    </div>
     <div class="card">
         <h2>Log Realtime <small style="font-size: 12px; color: green;">● Online</small></h2>
         <div id="log-container">Đang chờ log...</div>

@@ -38,7 +38,7 @@ type Config struct {
 	TunnelToken string // trimmed; empty means "no named tunnel"
 
 	DebugMode   bool
-	LogPassword string // optional, off (Basic Auth disabled) when empty
+	LogPassword string // fromEnv() always fills this (random if unset in .env) — see fromEnv; empty here only if a caller builds Config directly, bypassing Load
 
 	// Cloudflare Worker auto-deploy (internal/cfdeploy). Both
 	// CloudflareAPIToken and Domain must be non-empty to activate the
@@ -94,7 +94,18 @@ func fromEnv() (*Config, error) {
 		WebhookURL:  getenv("WEBHOOK_URL", defaultWebhookURL),
 		TunnelToken: strings.TrimSpace(getenv("TUNNEL_TOKEN", defaultTunnelToken)),
 		DebugMode:   strings.ToLower(strings.TrimSpace(os.Getenv("DEBUG_MODE"))) == "true",
-		LogPassword: getenv("LOG_PASSWORD", defaultLogPassword),
+		// Falls back to a freshly generated random secret, not
+		// defaultLogPassword (""), on every load where LOG_PASSWORD is
+		// absent/empty — matching WORKER_PASSWORD's pattern below. Critical
+		// for pre-dashboard .env files (LOG_PASSWORD never existed as a
+		// key): without this, an existing deployment upgrading to the
+		// dashboard feature would hit main.go's new "LOG_PASSWORD required"
+		// fatal check on its very first restart. Same caveat as
+		// WORKER_PASSWORD: unless the generated value is written back to
+		// .env, it re-randomizes on every restart (harmless for the
+		// process's own listener, but invalidates any previously
+		// bookmarked dashboard credentials).
+		LogPassword: getenv("LOG_PASSWORD", newSecretToken(24)),
 
 		CloudflareAPIToken:  strings.TrimSpace(getenv("CLOUDFLARE_API_TOKEN", defaultCloudflareAPIToken)),
 		CloudflareAccountID: strings.TrimSpace(getenv("CLOUDFLARE_ACCOUNT_ID", defaultCloudflareAccountID)),
@@ -156,6 +167,7 @@ func writeDefaultEnvFile(path string) error {
 		defaultWSHost,
 		defaultTransport,
 		defaultWebhookURL,
+		newSecretToken(24), // LOG_PASSWORD
 		defaultTunnelToken,
 		defaultCloudflareAPIToken,
 		defaultCloudflareAccountID,
