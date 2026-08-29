@@ -7,15 +7,13 @@
 #      latest GitHub Release and verifies the checksum.
 #   3. Runs the binary in the foreground.
 #
-# The repo is private, so downloading needs either the `gh` CLI (already
-# authenticated) or a GITHUB_TOKEN / classic PAT with `repo` scope (private
-# repos require a token even for read-only release-asset access — a plain
-# `curl` against the public download URL will just 404).
+# The repo is public, so downloading is a plain, unauthenticated `curl`
+# against the public release-asset URLs — no token or `gh` login needed.
 #
 # Usage:
 #   ./install.sh                # interactive, installs into ./xrayws-run
 #   INSTALL_DIR=/opt/xrayws ./install.sh
-#   GITHUB_TOKEN=ghp_xxx ./install.sh   # non-interactive download auth
+#   RELEASE_TAG=v1.0.0 ./install.sh   # pin a specific release instead of latest
 
 set -euo pipefail
 
@@ -122,41 +120,15 @@ bin_path="$INSTALL_DIR/xrayws"
 echo
 echo "Target asset: $asset (release: $RELEASE_TAG)"
 
-download_with_gh() {
-  command -v gh >/dev/null 2>&1 || return 1
-  gh release download "$RELEASE_TAG" -R "$REPO" \
-    -p "$asset" -p "SHA256SUMS" -D "$INSTALL_DIR" --clobber
-}
-
-download_with_curl() {
-  local token="${GITHUB_TOKEN:-}"
-  if [ -z "$token" ]; then
-    read -r -s -p "GitHub token (repo scope, needed for private-repo release assets): " token
-    echo
-  fi
-  [ -n "$token" ] || { echo "No token provided, cannot download from a private repo." >&2; return 1; }
-
-  command -v jq >/dev/null 2>&1 || { echo "jq is required for the curl fallback path (or install 'gh' instead)." >&2; return 1; }
-
-  local api="https://api.github.com/repos/$REPO/releases"
-  [ "$RELEASE_TAG" = "latest" ] && api="$api/latest" || api="$api/tags/$RELEASE_TAG"
-
-  local release_json
-  release_json="$(curl -fsSL -H "Authorization: token $token" -H "Accept: application/vnd.github+json" "$api")"
-
-  for name in "$asset" "SHA256SUMS"; do
-    local asset_id
-    asset_id="$(echo "$release_json" | jq -r --arg n "$name" '.assets[] | select(.name==$n) | .id')"
-    [ -n "$asset_id" ] && [ "$asset_id" != "null" ] || { echo "Asset '$name' not found in release $RELEASE_TAG." >&2; return 1; }
-    curl -fsSL -H "Authorization: token $token" -H "Accept: application/octet-stream" \
-      "https://api.github.com/repos/$REPO/releases/assets/$asset_id" -o "$INSTALL_DIR/$name"
-  done
-}
-
-if ! download_with_gh; then
-  echo "'gh' CLI not available or failed, falling back to curl + GitHub API..."
-  download_with_curl
+if [ "$RELEASE_TAG" = "latest" ]; then
+  base_url="https://github.com/$REPO/releases/latest/download"
+else
+  base_url="https://github.com/$REPO/releases/download/$RELEASE_TAG"
 fi
+
+for name in "$asset" "SHA256SUMS"; do
+  curl -fL -o "$INSTALL_DIR/$name" "$base_url/$name"
+done
 
 mv "$INSTALL_DIR/$asset" "$bin_path"
 chmod +x "$bin_path"
