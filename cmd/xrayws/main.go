@@ -55,6 +55,20 @@ func run(ctx context.Context, ciMode bool, logPort int) error {
 		return fmt.Errorf("config: %w", err)
 	}
 
+	// Per validation interview (2026-08-29): LOG_PASSWORD is now a hard
+	// requirement whenever the dashboard is enabled, not just a documented
+	// risk — /stats exposes live traffic rates and the tunnel hostname, not
+	// just log text, so an unauthenticated dashboard is a materially bigger
+	// exposure than the pre-existing unauthenticated /logs-only case. Fails
+	// fast, before any listener starts. --log-port=0 remains a valid way to
+	// disable the dashboard/log-viewer entirely with no password.
+	if logPort > 0 && cfg.LogPassword == "" {
+		return fmt.Errorf("log-port %d is enabled but LOG_PASSWORD is empty in .env — "+
+			"the dashboard would expose live traffic stats and the tunnel hostname with "+
+			"no authentication. Set LOG_PASSWORD, or pass --log-port=0 to disable the "+
+			"dashboard/log viewer entirely", logPort)
+	}
+
 	// Cloudflare Worker auto-deploy (internal/cfdeploy): no-op unless both
 	// CLOUDFLARE_API_TOKEN and DOMAIN are set in .env. Runs before anything
 	// else starts so cfg.WebhookURL is final by the time exportLinks first
@@ -121,6 +135,10 @@ func run(ctx context.Context, ciMode bool, logPort int) error {
 	}
 	defer engine.Close()
 
+	if logSrv != nil {
+		logSrv.Status.SetXrayUp(true)
+	}
+
 	// --- Phase 3: cloudflared, downloaded + supervised ---
 	binPath, err := tunnel.EnsureBinary(ctx, ".")
 	if err != nil {
@@ -130,13 +148,69 @@ func run(ctx context.Context, ciMode bool, logPort int) error {
 	sup := tunnel.NewSupervisor(cfg, binPath, ".")
 	sup.LogLine = logf("CLOUDFLARE", true)
 	sup.OnHostname = func(hostname string) {
-		exportLinks(ctx, cfg, hostname, startTime)
+		exportLinks(ctx, cfg, logSrv, hostname, startTime)
+	}
+	sup.OnReady = func(state tunnel.ReadyState) {
+		if logSrv != nil {
+			logSrv.Status.SetTunnelStatus(state.Ready, state.ReadyConnections)
+		}
 	}
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		sup.Run(ctx)
 	}()
+
+	// Traffic-rate sampling ticker (Phase 2): turns Engine.Traffic()'s
+	// cumulative counters into bytes/sec every 2s. Gating on `ok` is safe
+	// against sampling gaps — Phase 1's eager-registration redesign makes
+	// `ok` stable for the whole process lifetime (true from the first tick
+	// onward if stats activated correctly, false forever otherwise).
+	if logSrv != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			ticker := time.NewTicker(2 * time.Second)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+					if up, down, ok := engine.Traffic(); ok {
+						logSrv.Status.RecordTraffic(up, down)
+					}
+				}
+			}
+		}()
+	}
+
+	// Liveness-probe ticker (Phase 4): a lightweight raw-TCP
+	// connect-and-close against xray-core's own first configured VLESS
+	// port every 5s, replacing the boot-only SetXrayUp(true) flag above as
+	// the ongoing source of truth for xray_up via RecordLiveness's debounce.
+	if logSrv != nil && len(cfg.Ports) > 0 {
+		probeAddr := fmt.Sprintf("%s:%d", cfg.Ports[0].ListenIP, cfg.Ports[0].Port)
+		if cfg.Ports[0].ListenIP == "0.0.0.0" {
+			probeAddr = fmt.Sprintf("127.0.0.1:%d", cfg.Ports[0].Port)
+		}
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			ticker := time.NewTicker(5 * time.Second)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+					ok := xraycore.ProbeListener(ctx, probeAddr, 2*time.Second)
+					logSrv.Status.RecordLiveness(ok)
+				}
+			}
+		}()
+	}
 
 	// --- Phase 6: CI bridge, only under --ci-mode ---
 	if ciMode {
@@ -154,6 +228,9 @@ func run(ctx context.Context, ciMode bool, logPort int) error {
 
 	<-ctx.Done()
 	fmt.Println("\n[*] Stopping services...")
+	if logSrv != nil {
+		logSrv.Status.SetXrayUp(false)
+	}
 
 	// Wait for the supervisor (which owns the cloudflared subprocess) and
 	// the log server to actually finish tearing down before returning —
@@ -178,7 +255,11 @@ func run(ctx context.Context, ciMode bool, logPort int) error {
 // hostname is first detected or changes (including quick-tunnel
 // reconnects). Public IP lookup, file export, and webhook delivery are
 // each independently non-fatal (Phase 4 requirement).
-func exportLinks(ctx context.Context, cfg *config.Config, tunnelHost string, startTime int64) {
+func exportLinks(ctx context.Context, cfg *config.Config, logSrv *logserver.Server, tunnelHost string, startTime int64) {
+	if logSrv != nil {
+		logSrv.Status.SetHostname(tunnelHost)
+	}
+
 	fmt.Println("\n" + repeatEquals(70))
 	fmt.Println(" CONNECTED TO CLOUDFLARE TUNNEL")
 	fmt.Println(repeatEquals(70))

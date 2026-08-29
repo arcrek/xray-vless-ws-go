@@ -96,6 +96,27 @@ full field list). Set
 empty for a zero-setup quick tunnel (dev/test only — see
 `docs/architecture.md`'s decision log #7).
 
+### System dashboard (`--log-port`, default 9999)
+
+**Breaking change:** as of the system-dashboard feature, `LOG_PASSWORD` is
+now **required** whenever the dashboard is enabled (`--log-port` > 0, which
+is the default). The dashboard now serves live traffic stats and the
+current tunnel hostname at `GET /stats`, not just log text — an
+unauthenticated dashboard would expose meaningfully more than before, so
+the binary now fails fast (before any listener opens) if `--log-port > 0`
+and `LOG_PASSWORD` is empty. Set `LOG_PASSWORD` in `.env`, or pass
+`--log-port=0` to disable the dashboard/log viewer entirely (still valid
+with no password).
+
+The dashboard at `http://<host>:<log-port>/` shows xray/tunnel status,
+aggregate uplink/downlink throughput (a 5-minute sparkline), and the
+existing realtime log pane, polling a JSON `/stats` endpoint every 2s
+(same Basic Auth as `/logs`).
+
+**Recommendation:** the server is plain HTTP with no TLS (Basic Auth
+credentials travel in cleartext) — bind the dashboard port behind a
+VPN/loopback-only setup rather than exposing it on a public interface.
+
 `--ci-mode` (running the proxy itself inside a GitHub Actions runner via the
 `ENV_CONFIG` secret) still exists in the code, but `.github/workflows/`
 no longer invokes it — the Action now only builds and publishes release

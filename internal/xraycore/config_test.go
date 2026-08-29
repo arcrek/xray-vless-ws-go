@@ -57,6 +57,12 @@ func TestBuildConfigShape(t *testing.T) {
 	if client["id"] != "test-uuid" {
 		t.Errorf("client.id = %v, want test-uuid", client["id"])
 	}
+	if client["email"] != statsEmail {
+		t.Errorf("client.email = %v, want %v", client["email"], statsEmail)
+	}
+	if client["level"] != float64(0) {
+		t.Errorf("client.level = %v, want 0", client["level"])
+	}
 
 	stream := first["streamSettings"].(map[string]any)
 	if stream["network"] != "ws" {
@@ -74,6 +80,36 @@ func TestBuildConfigShape(t *testing.T) {
 	outbound := outbounds[0].(map[string]any)
 	if outbound["protocol"] != "freedom" {
 		t.Errorf("outbound.protocol = %v, want freedom (WARP dropped per decision log #5)", outbound["protocol"])
+	}
+
+	// Exact-value assertions on the new policy/stats keys (plan Phase 1,
+	// Red Team finding #5) — not just "keys present", to actually guard
+	// against the pinned xray-core API drifting the JSON shape.
+	policy, ok := decoded["policy"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected top-level policy block, got %#v", decoded["policy"])
+	}
+	levels, ok := policy["levels"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected policy.levels, got %#v", policy["levels"])
+	}
+	level0, ok := levels["0"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected policy.levels[\"0\"], got %#v", levels["0"])
+	}
+	if level0["statsUserUplink"] != true {
+		t.Errorf("policy.levels[0].statsUserUplink = %v, want true", level0["statsUserUplink"])
+	}
+	if level0["statsUserDownlink"] != true {
+		t.Errorf("policy.levels[0].statsUserDownlink = %v, want true", level0["statsUserDownlink"])
+	}
+
+	stats, ok := decoded["stats"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected top-level stats block, got %#v", decoded["stats"])
+	}
+	if len(stats) != 0 {
+		t.Errorf("stats block = %#v, want empty object", stats)
 	}
 }
 

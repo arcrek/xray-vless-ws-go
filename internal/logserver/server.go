@@ -18,8 +18,9 @@ import (
 
 // Server is the embedded log viewer HTTP server.
 type Server struct {
-	Addr     string // e.g. "0.0.0.0:9999"
-	Password string // empty = auth disabled
+	Addr     string       // e.g. "0.0.0.0:9999"
+	Password string       // empty = auth disabled
+	Status   *StatusStore // always non-nil
 
 	ring       *Ring
 	httpServer *http.Server
@@ -30,6 +31,7 @@ func New(addr, password string, maxLogs int) *Server {
 	return &Server{
 		Addr:     addr,
 		Password: password,
+		Status:   NewStatusStore(),
 		ring:     NewRing(maxLogs),
 	}
 }
@@ -53,6 +55,7 @@ func (s *Server) Start(ctx context.Context) error {
 	mux := http.NewServeMux()
 	mux.Handle("/", s.withAuth(http.FileServer(http.FS(assetsFS))))
 	mux.Handle("/logs", s.withAuth(http.HandlerFunc(s.handleLogs)))
+	mux.Handle("/stats", s.withAuth(http.HandlerFunc(s.handleStats)))
 
 	s.httpServer = &http.Server{Addr: s.Addr, Handler: mux}
 
@@ -114,4 +117,10 @@ func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request) {
 		"new_logs": newLogs,
 		"last_id":  currentSeq,
 	})
+}
+
+// handleStats serves GET /stats -> the current StatsSnapshot as JSON.
+func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(s.Status.Snapshot())
 }

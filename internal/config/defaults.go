@@ -10,7 +10,8 @@ const (
 	defaultTransport   = "websocket"
 	defaultWebhookURL  = ""
 	defaultTunnelToken = ""
-	defaultLogPassword = ""
+	// No defaultLogPassword const — fromEnv() falls back to a freshly
+	// generated newSecretToken(24), not a fixed empty default (config.go).
 
 	defaultCloudflareAPIToken  = ""
 	defaultCloudflareAccountID = ""
@@ -26,6 +27,12 @@ WS_PATH=%s
 WS_HOST=%s
 TRANSPORT=%s
 WEBHOOK_URL=%s
+# Required whenever the embedded dashboard/log viewer is enabled (the
+# default: --log-port=9999). Generated randomly on first run so a fresh
+# install works out of the box — the dashboard serves live traffic stats
+# and the tunnel hostname, so it refuses to start unauthenticated. Change
+# this, or pass --log-port=0 to disable the dashboard entirely.
+LOG_PASSWORD=%s
 # Optional: use a named Cloudflare Tunnel (Zero Trust dashboard) instead of a
 # quick/ephemeral tunnel. If set, cloudflared runs as:
 #   cloudflared tunnel run --token <TUNNEL_TOKEN>

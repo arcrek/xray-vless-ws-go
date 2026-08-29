@@ -52,3 +52,66 @@ async function fetchLogs() {
     } catch (e) {}
 }
 setInterval(fetchLogs, 1000);
+
+function formatBps(n) {
+    if (n < 1024) return `${n} B/s`;
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB/s`;
+    return `${(n / 1024 / 1024).toFixed(1)} MB/s`;
+}
+
+function formatUptime(sec) {
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = Math.floor(sec % 60);
+    return `${h}h ${m}m ${s}s`;
+}
+
+function drawSparkline(history) {
+    const canvas = document.getElementById("sparkline");
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (history.length < 2) return;
+
+    // x-position by timestamp, not array index — a sampling gap should
+    // render as a gap, not a smooth evenly-spaced line hiding an outage.
+    let maxVal = 1;
+    for (const h of history) maxVal = Math.max(maxVal, h.up_bps, h.down_bps);
+
+    const tMin = history[0].t;
+    const tMax = history[history.length - 1].t;
+    const tSpan = Math.max(1, tMax - tMin);
+
+    function drawLine(key, color) {
+        ctx.beginPath();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        history.forEach((point, i) => {
+            const x = ((point.t - tMin) / tSpan) * canvas.width;
+            const y = canvas.height - (point[key] / maxVal) * canvas.height;
+            if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+    }
+    drawLine("up_bps", "#2ed573");
+    drawLine("down_bps", "#007bff");
+}
+
+async function fetchStats() {
+    try {
+        const res = await fetch("/stats");
+        const s = await res.json();
+
+        document.getElementById("dot-xray").className = "dot " + (s.xray_up ? "dot-on" : "dot-off");
+        document.getElementById("xray-state").textContent = s.xray_up ? "started" : "stopped"; // "started", not "running" — xray_up is not a continuous liveness signal the way tunnel_ready is
+        document.getElementById("dot-tunnel").className = "dot " + (s.tunnel_ready ? "dot-on" : "dot-off");
+        document.getElementById("tunnel-state").textContent = s.tunnel_ready ? "ready" : "connecting";
+        document.getElementById("ready-connections").textContent = s.ready_connections;
+        document.getElementById("hostname").textContent = s.hostname || "—";
+        document.getElementById("uptime").textContent = formatUptime(s.uptime_sec);
+        document.getElementById("up-bps").textContent = formatBps(s.uplink_bps);
+        document.getElementById("down-bps").textContent = formatBps(s.downlink_bps);
+        drawSparkline(s.history || []);
+    } catch (e) {}
+}
+fetchStats();
+setInterval(fetchStats, 2000);

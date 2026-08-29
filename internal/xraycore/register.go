@@ -18,11 +18,20 @@ package xraycore
 //   - transport/internet/websocket: the only transport this project uses
 //     (TRANSPORT is force-downgraded to "websocket" in internal/config).
 //   - main/json: registers the "JSON" config format core.StartInstance("JSON", ...) needs.
+//
+// app/policy and app/stats are already initialized transitively (via
+// main/json -> infra/conf's own non-blank imports of both) — the two blank
+// imports below change nothing functionally. Kept only so a reader scanning
+// this file's import list can see at a glance that policy/stats support is
+// intentionally relied upon, not accidental. (Verified against pinned
+// source during planning — see plan phase-01's Key Insights.)
 import (
 	_ "github.com/xtls/xray-core/app/dispatcher"
 	_ "github.com/xtls/xray-core/app/log"
+	_ "github.com/xtls/xray-core/app/policy"
 	_ "github.com/xtls/xray-core/app/proxyman/inbound"
 	_ "github.com/xtls/xray-core/app/proxyman/outbound"
+	_ "github.com/xtls/xray-core/app/stats"
 	_ "github.com/xtls/xray-core/main/json"
 	_ "github.com/xtls/xray-core/proxy/freedom"
 	_ "github.com/xtls/xray-core/proxy/vless/inbound"

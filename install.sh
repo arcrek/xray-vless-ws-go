@@ -51,6 +51,13 @@ ask TRANSPORT        "Transport" "websocket"
 ask WEBHOOK_URL      "Webhook URL for link updates (blank = disabled)" ""
 
 echo
+echo "Dashboard (http://<host>:9999/ by default): required Basic-Auth password —"
+echo "the dashboard shows live traffic stats and the tunnel hostname, so it"
+echo "refuses to start with no password set."
+default_log_password="$(head -c18 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c24)"
+ask LOG_PASSWORD      "Dashboard password" "$default_log_password"
+
+echo
 echo "Tunnel mode: leave both blank for a zero-setup quick tunnel (dev/test)."
 echo "For production, set a named Cloudflare Tunnel token instead."
 ask TUNNEL_TOKEN     "Cloudflare named tunnel token (blank = quick tunnel)" ""
@@ -91,6 +98,7 @@ WS_PATH=$WS_PATH
 WS_HOST=$WS_HOST
 TRANSPORT=$TRANSPORT
 WEBHOOK_URL=$WEBHOOK_URL
+LOG_PASSWORD=$LOG_PASSWORD
 TUNNEL_TOKEN=$TUNNEL_TOKEN
 CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN
 CLOUDFLARE_ACCOUNT_ID=$CLOUDFLARE_ACCOUNT_ID

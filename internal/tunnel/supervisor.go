@@ -36,6 +36,14 @@ type Supervisor struct {
 	// a stronger zero-log-parsing guarantee than matching a
 	// "registered tunnel connection" log line).
 	OnHostname func(hostname string)
+
+	// OnReady fires on every successful /ready poll outcome (both ready and
+	// not-ready), and once more with Ready:false on every watch() exit path
+	// that bypasses the readyCh case (cloudflared crash, closed poll
+	// channel) — so a caller (the dashboard's StatusStore) never keeps
+	// showing a stale "ready" state through a crash/restart/backoff cycle.
+	// nil-safe, same convention as OnHostname.
+	OnReady func(state ReadyState)
 }
 
 // NewSupervisor constructs a Supervisor. binPath is the cloudflared binary
@@ -130,6 +138,9 @@ func (s *Supervisor) watch(ctx context.Context, exitCh <-chan error, readyCh <-c
 			return "context cancelled"
 
 		case err := <-exitCh:
+			if s.OnReady != nil {
+				s.OnReady(ReadyState{Ready: false})
+			}
 			if err != nil {
 				return fmt.Sprintf("process exited unexpectedly: %v", err)
 			}
@@ -137,11 +148,17 @@ func (s *Supervisor) watch(ctx context.Context, exitCh <-chan error, readyCh <-c
 
 		case state, ok := <-readyCh:
 			if !ok {
+				if s.OnReady != nil {
+					s.OnReady(ReadyState{Ready: false})
+				}
 				return "ready-poll channel closed"
 			}
 			if state.Err != nil {
 				s.log("[!] /ready poll error: %v", state.Err)
 				continue
+			}
+			if s.OnReady != nil {
+				s.OnReady(state)
 			}
 			if state.Ready {
 				notReadySince = time.Time{}
