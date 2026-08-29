@@ -63,17 +63,24 @@ realistic Android/Termux use case.
 
 ## Quickstart (install script)
 
+One-liner — downloads `install.sh` and runs it straight away:
+
+```
+curl -fsSL https://raw.githubusercontent.com/arcrek/xray-vless-ws-go/main/install.sh | bash
+```
+
+Or clone first and run it locally:
+
 ```
 ./install.sh
 ```
 
 Prompts for the `.env` values (Enter keeps the default), downloads the
 matching prebuilt binary + `SHA256SUMS` from this repo's latest GitHub
-Release, verifies the checksum, and runs it in the foreground. See
+Release (plain unauthenticated `curl` against the public release URLs — no
+token needed), verifies the checksum, and runs it in the foreground. See
 `install.sh`'s header comment for env-var overrides (`INSTALL_DIR`,
-`GITHUB_TOKEN`, `RELEASE_TAG`) and the private-repo auth note (`gh` CLI or a
-`repo`-scoped token — plain unauthenticated `curl` 404s on private release
-assets).
+`RELEASE_TAG`).
 
 ## Run (manual)
 

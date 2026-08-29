@@ -17,6 +17,13 @@
 
 set -euo pipefail
 
+# When run as `curl ... | bash`, stdin is the piped script, not the
+# terminal — `read` below would hit EOF instantly. Rebind stdin to the
+# controlling tty so the interactive prompts still work.
+if [ ! -t 0 ] && [ -r /dev/tty ]; then
+  exec </dev/tty
+fi
+
 REPO="${REPO:-arcrek/xray-vless-ws-go}"
 INSTALL_DIR="${INSTALL_DIR:-$PWD/xrayws-run}"
 RELEASE_TAG="${RELEASE_TAG:-latest}"
