@@ -39,6 +39,15 @@ type Config struct {
 
 	DebugMode   bool
 	LogPassword string // optional, off (Basic Auth disabled) when empty
+
+	// Cloudflare Worker auto-deploy (internal/cfdeploy). Both
+	// CloudflareAPIToken and Domain must be non-empty to activate the
+	// feature — see cfdeploy.Ensure. CloudflareAccountID is an optional
+	// override; empty means "auto-resolve via GET /accounts".
+	CloudflareAPIToken  string // trimmed; empty means auto-deploy is off
+	CloudflareAccountID string
+	Domain              string // trimmed; empty means auto-deploy is off
+	WorkerPassword      string // baked into the deployed Worker's /setapi?password= check
 }
 
 // Load reads .env (godotenv), falling back to hardcoded defaults for any
@@ -87,6 +96,11 @@ func fromEnv() (*Config, error) {
 		TunnelToken: strings.TrimSpace(getenv("TUNNEL_TOKEN", defaultTunnelToken)),
 		DebugMode:   strings.ToLower(strings.TrimSpace(os.Getenv("DEBUG_MODE"))) == "true",
 		LogPassword: getenv("LOG_PASSWORD", defaultLogPassword),
+
+		CloudflareAPIToken:  strings.TrimSpace(getenv("CLOUDFLARE_API_TOKEN", defaultCloudflareAPIToken)),
+		CloudflareAccountID: strings.TrimSpace(getenv("CLOUDFLARE_ACCOUNT_ID", defaultCloudflareAccountID)),
+		Domain:              strings.TrimSpace(getenv("DOMAIN", defaultDomain)),
+		WorkerPassword:      getenv("WORKER_PASSWORD", newSecretToken(24)),
 	}
 
 	// TRANSPORT: only "websocket" is supported in v1. xhttp is
@@ -144,6 +158,10 @@ func writeDefaultEnvFile(path string) error {
 		defaultTransport,
 		defaultWebhookURL,
 		defaultTunnelToken,
+		defaultCloudflareAPIToken,
+		defaultCloudflareAccountID,
+		defaultDomain,
+		newSecretToken(24),
 	)
 
 	// 0600: .env may contain TUNNEL_TOKEN (a Cloudflare secret). The Python

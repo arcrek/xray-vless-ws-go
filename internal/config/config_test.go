@@ -111,7 +111,10 @@ func TestParseSNIList(t *testing.T) {
 // python-dotenv) — since Go tests share one process, an earlier subtest's
 // os.Setenv leaks into later ones unless cleared first. clearEnvKeys
 // simulates the fresh-process env every real run actually has.
-var envKeys = []string{"PORT", "XRAY_UUID", "FAKE_SNI", "WS_PATH", "WS_HOST", "TRANSPORT", "WEBHOOK_URL", "TUNNEL_TOKEN", "DEBUG_MODE", "LOG_PASSWORD"}
+var envKeys = []string{
+	"PORT", "XRAY_UUID", "FAKE_SNI", "WS_PATH", "WS_HOST", "TRANSPORT", "WEBHOOK_URL", "TUNNEL_TOKEN", "DEBUG_MODE", "LOG_PASSWORD",
+	"CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID", "DOMAIN", "WORKER_PASSWORD",
+}
 
 func clearEnvKeys(t *testing.T) {
 	t.Helper()
@@ -192,5 +195,67 @@ func TestWSPathNormalization(t *testing.T) {
 	}
 	if cfg.WSPath != "/noSlash" {
 		t.Errorf("WSPath = %q, want /noSlash", cfg.WSPath)
+	}
+}
+
+func TestCloudflareAutoDeployFieldsDefaultOff(t *testing.T) {
+	clearEnvKeys(t)
+	dir := t.TempDir()
+	oldWD, _ := os.Getwd()
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(oldWD)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load(): unexpected error: %v", err)
+	}
+	if cfg.CloudflareAPIToken != "" {
+		t.Errorf("expected empty default CloudflareAPIToken, got %q", cfg.CloudflareAPIToken)
+	}
+	if cfg.Domain != "" {
+		t.Errorf("expected empty default Domain, got %q", cfg.Domain)
+	}
+	if cfg.CloudflareAccountID != "" {
+		t.Errorf("expected empty default CloudflareAccountID, got %q", cfg.CloudflareAccountID)
+	}
+	// WorkerPassword is generated even when the feature is off — same
+	// "always present, harmless if unused" idiom as XRAY_UUID.
+	if cfg.WorkerPassword == "" {
+		t.Error("expected a generated default WorkerPassword, got empty string")
+	}
+}
+
+func TestCloudflareAutoDeployFieldsFromEnv(t *testing.T) {
+	clearEnvKeys(t)
+	dir := t.TempDir()
+	oldWD, _ := os.Getwd()
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(oldWD)
+
+	envContent := "PORT=8888\nXRAY_UUID=x\nFAKE_SNI=a.com\nWS_PATH=/p\nWS_HOST=h\nTRANSPORT=websocket\n" +
+		"CLOUDFLARE_API_TOKEN= tok123 \nCLOUDFLARE_ACCOUNT_ID= acc1 \nDOMAIN= example.com \nWORKER_PASSWORD=secret1\n"
+	if err := os.WriteFile(".env", []byte(envContent), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load(): unexpected error: %v", err)
+	}
+	if cfg.CloudflareAPIToken != "tok123" {
+		t.Errorf("CloudflareAPIToken = %q, want tok123 (trimmed)", cfg.CloudflareAPIToken)
+	}
+	if cfg.CloudflareAccountID != "acc1" {
+		t.Errorf("CloudflareAccountID = %q, want acc1 (trimmed)", cfg.CloudflareAccountID)
+	}
+	if cfg.Domain != "example.com" {
+		t.Errorf("Domain = %q, want example.com (trimmed)", cfg.Domain)
+	}
+	if cfg.WorkerPassword != "secret1" {
+		t.Errorf("WorkerPassword = %q, want secret1", cfg.WorkerPassword)
 	}
 }

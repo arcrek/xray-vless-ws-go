@@ -17,6 +17,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/arcrek/xray-vless-ws-go/internal/cfdeploy"
 	"github.com/arcrek/xray-vless-ws-go/internal/ci"
 	"github.com/arcrek/xray-vless-ws-go/internal/config"
 	"github.com/arcrek/xray-vless-ws-go/internal/linkgen"
@@ -52,6 +53,18 @@ func run(ctx context.Context, ciMode bool, logPort int) error {
 	cfg, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("config: %w", err)
+	}
+
+	// Cloudflare Worker auto-deploy (internal/cfdeploy): no-op unless both
+	// CLOUDFLARE_API_TOKEN and DOMAIN are set in .env. Runs before anything
+	// else starts so cfg.WebhookURL is final by the time exportLinks first
+	// fires. Provisioning failure is non-fatal — same "independently
+	// non-fatal" pattern as webhook delivery itself (exportLinks below):
+	// cfg.WebhookURL is simply left as whatever .env already had.
+	if webhookURL, err := cfdeploy.Ensure(ctx, cfg); err != nil {
+		fmt.Fprintf(os.Stderr, "[!] Cloudflare auto-deploy failed: %v — falling back to WEBHOOK_URL from .env\n", err)
+	} else if webhookURL != "" {
+		cfg.WebhookURL = webhookURL
 	}
 
 	startTime := time.Now().Unix()

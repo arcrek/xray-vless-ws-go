@@ -92,6 +92,29 @@ no longer invokes it — the Action now only builds and publishes release
 binaries (see below). Run `--ci-mode` manually if you still want that
 free-runner-as-host deployment.
 
+## Cloudflare Worker auto-deploy (`internal/cfdeploy`)
+
+Optional: set both of these in `.env` to have the binary provision the
+Worker bridge (`docs/README_vi.md`'s Bước 2 "deploy `_worker.js`" + Bước 3
+"Workers KV binding") via the Cloudflare REST API on every startup, instead
+of doing it by hand in the dashboard:
+
+| Key | Meaning |
+|---|---|
+| `CLOUDFLARE_API_TOKEN` | Scoped API token — needs **Workers Scripts:Edit**, **Workers KV Storage:Edit**, **Workers Routes/Custom Domains:Edit**, and **Zone:Read** on `DOMAIN`'s zone. |
+| `DOMAIN` | A zone apex already on the same Cloudflare account (e.g. `example.com`). |
+| `CLOUDFLARE_ACCOUNT_ID` | Optional — only needed if the token can see more than one account (auto-resolved via `GET /accounts` otherwise). |
+| `WORKER_PASSWORD` | Generated once on first run (same idiom as `XRAY_UUID`) — becomes the deployed Worker's `/setapi?password=` check. |
+
+Both `CLOUDFLARE_API_TOKEN` and `DOMAIN` empty (the default) skips this
+entirely — `WEBHOOK_URL` is then used exactly as set in `.env`, unchanged
+behavior. When active, the script is **re-deployed every run** (keeps the
+deployed code current); the Workers KV namespace is **created once and
+reused by name** on later runs, so stored config survives restarts. A
+provisioning failure (bad token, zone not found, etc.) is logged as a
+warning and never blocks startup — it just falls back to `WEBHOOK_URL` from
+`.env`.
+
 ## Startup latency
 
 Measured on this development machine, `bin/xrayws-linux-amd64` (stripped,
