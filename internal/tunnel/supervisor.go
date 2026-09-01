@@ -9,8 +9,8 @@ import (
 )
 
 const (
-	readyPollInterval = 2 * time.Second
-	notReadyGrace     = 20 * time.Second // sustained not-ready-while-alive before a restart
+	readyPollInterval = 1 * time.Second
+	notReadyGrace     = 15 * time.Second // sustained not-ready-while-alive before a restart
 	backoffInitial    = 2 * time.Second
 	backoffMax        = 60 * time.Second
 	shutdownGrace     = 5 * time.Second // how long to wait for cloudflared to exit after Terminate() before escalating to Kill()
