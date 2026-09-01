@@ -69,16 +69,32 @@ func run(ctx context.Context, ciMode bool, logPort int) error {
 			"dashboard/log viewer entirely", logPort)
 	}
 
-	// Cloudflare Worker auto-deploy (internal/cfdeploy): no-op unless both
-	// CLOUDFLARE_API_TOKEN and DOMAIN are set in .env. Runs before anything
-	// else starts so cfg.WebhookURL is final by the time exportLinks first
-	// fires. Provisioning failure is non-fatal — same "independently
-	// non-fatal" pattern as webhook delivery itself (exportLinks below):
-	// cfg.WebhookURL is simply left as whatever .env already had.
-	if webhookURL, err := cfdeploy.Ensure(ctx, cfg); err != nil {
-		fmt.Fprintf(os.Stderr, "[!] Cloudflare auto-deploy failed: %v — falling back to WEBHOOK_URL from .env\n", err)
-	} else if webhookURL != "" {
+	// Cloudflare Worker auto-deploy + named Tunnel auto-provision
+	// (internal/cfdeploy): no-op unless both CLOUDFLARE_API_TOKEN and
+	// DOMAIN are set in .env; the Tunnel half additionally only fires when
+	// TUNNEL_TOKEN is blank and WS_HOST names a fixed hostname (see
+	// ensureNamedTunnel's doc comment). Runs before anything else starts so
+	// cfg.WebhookURL/cfg.TunnelToken are final by the time exportLinks and
+	// tunnel.Launch first read them.
+	//
+	// webhookURL/tunnelToken are applied independently of err: the two
+	// halves (Worker deploy, Tunnel provision) can succeed or fail on their
+	// own, and Ensure returns whichever of the two it got as far as
+	// completing even when the other errored (see its doc comment) — so a
+	// Tunnel-provisioning hiccup must not throw away an already-successful
+	// Worker deploy's webhookURL, or vice versa. Any err is just a
+	// non-fatal warning; a field that stayed "" here is simply left as
+	// whatever .env already had.
+	webhookURL, tunnelToken, err := cfdeploy.Ensure(ctx, cfg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[!] Cloudflare auto-deploy failed: %v — falling back to .env for whichever of "+
+			"WEBHOOK_URL/TUNNEL_TOKEN wasn't provisioned successfully\n", err)
+	}
+	if webhookURL != "" {
 		cfg.WebhookURL = webhookURL
+	}
+	if tunnelToken != "" {
+		cfg.TunnelToken = tunnelToken
 	}
 
 	startTime := time.Now().Unix()

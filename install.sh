@@ -73,22 +73,14 @@ default_log_password="$(head -c18 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | h
 ask LOG_PASSWORD      "Dashboard password" "$default_log_password"
 
 echo
-echo "Tunnel mode: leave both blank for a zero-setup quick tunnel (dev/test)."
-echo "For production, set a named Cloudflare Tunnel token instead."
-ask TUNNEL_TOKEN     "Cloudflare named tunnel token (blank = quick tunnel)" ""
-if [ -n "$TUNNEL_TOKEN" ]; then
-  ask WS_HOST        "Public hostname configured for that tunnel" ""
-else
-  WS_HOST="trycloudflare.com"
-fi
-
-echo
 echo "Cloudflare Worker auto-deploy (optional): provisions the Worker bridge"
 echo "+ KV binding + custom domain route via the Cloudflare REST API instead"
 echo "of doing it by hand in the dashboard. Leave blank to skip (WEBHOOK_URL"
 echo "above is then used as-is, unchanged behavior)."
 echo "Token needs: Workers Scripts:Edit, Workers KV Storage:Edit,"
 echo "Workers Routes:Edit (Zone), Zone:Read (Zone) — scoped to DOMAIN's zone."
+echo "Also unlocks named-Tunnel auto-provision below (needs Cloudflare"
+echo "Tunnel:Edit (Account) + DNS:Edit (Zone) on top of the scopes above)."
 ask CLOUDFLARE_API_TOKEN "Cloudflare API token (blank = skip auto-deploy)" ""
 if [ -n "$CLOUDFLARE_API_TOKEN" ]; then
   echo "  (zone apex only, no 'vless.' prefix — the app adds that itself,"
@@ -100,6 +92,29 @@ else
   DOMAIN=""
   CLOUDFLARE_ACCOUNT_ID=""
   WORKER_PASSWORD=""
+fi
+
+echo
+if [ -n "$CLOUDFLARE_API_TOKEN" ] && [ -n "$DOMAIN" ]; then
+  echo "Tunnel mode: with the Cloudflare API token above, the app can"
+  echo "auto-create a named Tunnel + DNS route for you — just give it a"
+  echo "public hostname. Leave blank for a zero-setup quick tunnel (dev/test)."
+  echo "  (a subdomain of $DOMAIN, e.g. tunnel.$DOMAIN — must be different"
+  echo "   from vless.$DOMAIN, which is reserved by the Worker above)"
+  ask WS_HOST        "Public hostname for the named tunnel (blank = quick tunnel)" ""
+  TUNNEL_TOKEN=""    # always blank here — the app fetches one from the API at runtime
+  if [ -z "$WS_HOST" ]; then
+    WS_HOST="trycloudflare.com"
+  fi
+else
+  echo "Tunnel mode: leave both blank for a zero-setup quick tunnel (dev/test)."
+  echo "For production, set a named Cloudflare Tunnel token instead."
+  ask TUNNEL_TOKEN     "Cloudflare named tunnel token (blank = quick tunnel)" ""
+  if [ -n "$TUNNEL_TOKEN" ]; then
+    ask WS_HOST        "Public hostname configured for that tunnel" ""
+  else
+    WS_HOST="trycloudflare.com"
+  fi
 fi
 
 mkdir -p "$INSTALL_DIR"

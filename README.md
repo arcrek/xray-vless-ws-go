@@ -136,7 +136,7 @@ custom-domain attach, self-heals on the next run):
 
 | Key | Meaning |
 |---|---|
-| `CLOUDFLARE_API_TOKEN` | Scoped API token — needs **Workers Scripts:Edit**, **Workers KV Storage:Edit**, **Workers Routes:Edit** (Zone), and **Zone:Read** (Zone) on `DOMAIN`'s zone. |
+| `CLOUDFLARE_API_TOKEN` | Scoped API token — needs **Workers Scripts:Edit**, **Workers KV Storage:Edit**, **Workers Routes:Edit** (Zone), and **Zone:Read** (Zone) on `DOMAIN`'s zone. Also needs **Cloudflare Tunnel:Edit** (Account) and **DNS:Edit** (Zone) if you want the named-Tunnel auto-provision below. |
 | `DOMAIN` | A zone apex already on the same Cloudflare account (e.g. `example.com` — **not** `vless.example.com`; the app prepends the `vless.` prefix itself, so the deployed hostname becomes `vless.example.com`). |
 | `CLOUDFLARE_ACCOUNT_ID` | Optional — only needed if the token can see more than one account (auto-resolved via `GET /accounts` otherwise). |
 | `WORKER_PASSWORD` | Generated once on first run (same idiom as `XRAY_UUID`) — becomes the deployed Worker's `/setapi?password=` check. |
@@ -149,6 +149,20 @@ reused by name** on later runs, so stored config survives restarts. A
 provisioning failure (bad token, zone not found, etc.) is logged as a
 warning and never blocks startup — it just falls back to `WEBHOOK_URL` from
 `.env`.
+
+### Named Tunnel auto-provision
+
+With `CLOUDFLARE_API_TOKEN` + `DOMAIN` set above, also leave `TUNNEL_TOKEN`
+blank and set `WS_HOST` to a real hostname (a subdomain of `DOMAIN` other
+than `vless.DOMAIN`, which the Worker route above reserves — e.g.
+`tunnel.example.com`) to skip `cloudflared tunnel login/create/route dns`
+entirely: the app finds-or-creates a named Tunnel (fixed name
+`xray-vless-ws-bridge-tunnel`), points a proxied CNAME `WS_HOST` →
+`<tunnel-id>.cfargotunnel.com` at it, and fetches a fresh connector token on
+every start (never written to `.env` — Cloudflare tokens are re-fetchable on
+demand, so there's nothing to keep in sync). A manually-set `TUNNEL_TOKEN`
+is never overridden; leaving `WS_HOST` at the `trycloudflare.com` default
+skips this and uses a quick tunnel as before.
 
 ## Startup latency
 

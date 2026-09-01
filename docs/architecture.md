@@ -15,7 +15,7 @@ planning notes that produced it (never shipped in this repo).
 | `internal/linkgen` | `vless://` link building, `frp_info.config`/`.json` writer, webhook delivery |
 | `internal/logserver` | Embedded HTTP dashboard: realtime log viewer + `/stats` (xray/tunnel status, traffic throughput) — `go:embed` assets from `web/logserver` |
 | `internal/ci` | GitHub Actions CI bridge (export secret, watch+upload, re-dispatch) |
-| `internal/cfdeploy` | Cloudflare Worker bridge auto-deploy via the Cloudflare REST API |
+| `internal/cfdeploy` | Cloudflare Worker bridge + named Tunnel auto-provision via the Cloudflare REST API |
 
 ```
 cmd/
@@ -74,8 +74,20 @@ New package `internal/cfdeploy`, zero import from `internal/tunnel`/`internal/li
 - `domain.go` — `AttachCustomDomain`: `PUT /accounts/{id}/workers/domains` with `{hostname, service, zone_name}`.
 - `deploy.go` — `Ensure(ctx, cfg) (webhookURL string, err error)`: no-op when `CloudflareAPIToken`/`Domain` are empty; else runs Resolve → EnsureKVNamespace → UploadScript → AttachCustomDomain and returns `https://<hostname>/setapi?password=<WorkerPassword>`.
 - `assets/worker.js` (`go:embed`) — the Worker source, with the password line's literal replaced by a marker `__WORKER_PASSWORD__` before upload (substitution goes through `json.Marshal` so a password containing `"` or `\` can't break out of the deployed script's string literal).
+- `tunnel.go` — `ensureNamedTunnel`: find-or-create a named Tunnel by fixed name, fetch a fresh connector token, resolve `DOMAIN`'s zone, and find-or-create/patch a proxied CNAME `WS_HOST` → `<tunnel-id>.cfargotunnel.com`. No-op unless `TUNNEL_TOKEN` is blank and `WS_HOST` names a real (non-default, non-Worker-hostname) subdomain of `DOMAIN`.
 
-Fixed constants (not env-configurable, YAGNI): script name `xray-vless-ws-bridge`, KV namespace title `xray-vless-ws-bridge-kv`, hostname prefix `vless`, `compatibility_date` pinned to a fixed string.
+Fixed constants (not env-configurable, YAGNI): script name `xray-vless-ws-bridge`, KV namespace title `xray-vless-ws-bridge-kv`, tunnel name `xray-vless-ws-bridge-tunnel`, hostname prefix `vless`, `compatibility_date` pinned to a fixed string.
+
+## Decision log — Cloudflare named Tunnel auto-provision (`internal/cfdeploy/tunnel.go`)
+
+| # | Decision | Chosen | Rejected alternatives |
+|---|----------|--------|------------------------|
+| 1 | Trigger | Reuse existing fields, no new env vars: fires when `CLOUDFLARE_API_TOKEN`+`DOMAIN` are set, `TUNNEL_TOKEN` is blank, and `WS_HOST` is a real hostname (not the quick-tunnel default) | A dedicated `AUTO_TUNNEL=true` flag |
+| 2 | Token persistence | Never written to `.env` — fetched fresh from `GET .../cfd_tunnel/{id}/token` on every run, same as `cloudflared tunnel token` is re-runnable any time | Write back to `.env` like a generated password (adds a write-back code path this package didn't have) |
+| 3 | Idempotency | Tunnel found-or-created by fixed name (`xray-vless-ws-bridge-tunnel`, list-then-create, same idiom as `ensureKVNamespace`); DNS CNAME found-and-left-alone if already correct, patched if stale, created if absent | Always delete+recreate |
+| 4 | Config source | `config_src: cloudflare` (remotely-managed) tunnel at creation, but ingress is still driven by the **local** `config.yml` `internal/tunnel` already writes from `TUNNEL_TOKEN`+`WS_HOST` — no remote ingress API call needed, `internal/tunnel` is untouched | Push ingress rules via `PUT .../cfd_tunnel/{id}/configurations` too (would duplicate `WriteNamedTunnelConfig`'s job) |
+| 5 | Hostname collision guard | Refuse (log + no-op, not fatal) when `WS_HOST` equals the Worker's own `vless.DOMAIN` hostname — that hostname's DNS is already claimed by the Workers custom-domain route | Let the DNS record create call fail on its own |
+| 6 | Zone scope | Only ever resolves `DOMAIN`'s own zone (`GET /zones?name=DOMAIN`) — `WS_HOST` must be `DOMAIN` or a subdomain of it | Resolve any zone the token can see (would need listing all zones + suffix-matching) |
 
 ## Live-test notes (2026-08-29)
 
