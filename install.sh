@@ -21,7 +21,15 @@ set -euo pipefail
 # terminal — `read` below would hit EOF instantly. Rebind stdin to the
 # controlling tty so the interactive prompts still work.
 if [ ! -t 0 ] && [ -r /dev/tty ]; then
-  exec </dev/tty
+  # `-r /dev/tty` only checks permission bits; the node can still fail to
+  # open (ENXIO) when the process has no controlling terminal at all (CI,
+  # `docker run` without `-t`, some sandboxes). Probe in a subshell first so
+  # a failed open doesn't kill the whole script under `set -e`, and doesn't
+  # leave a scary "No such device or address" on stderr for a case we
+  # already expect and handle.
+  if (exec </dev/tty) 2>/dev/null; then
+    exec </dev/tty
+  fi
 fi
 
 REPO="${REPO:-arcrek/xray-vless-ws-go}"
