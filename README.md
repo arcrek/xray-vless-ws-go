@@ -78,7 +78,11 @@ Or clone first and run it locally:
 Prompts for the `.env` values (Enter keeps the default), downloads the
 matching prebuilt binary + `SHA256SUMS` from this repo's latest GitHub
 Release (plain unauthenticated `wget` against the public release URLs — no
-token needed), verifies the checksum, and runs it in the foreground. See
+token needed), and verifies the checksum. On Linux with systemd, the script
+then smoke-tests the binary (TCP probe on the configured `PORT` for up to
+15s) and, if healthy, creates and enables a `xrayws.service` systemd unit
+that auto-restarts on failure. Without systemd (macOS, containers) or if the
+smoke test fails, falls back to running in the foreground. See
 `install.sh`'s header comment for env-var overrides (`INSTALL_DIR`,
 `RELEASE_TAG`).
 

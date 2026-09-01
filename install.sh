@@ -5,7 +5,9 @@
 #   1. Asks for the .env values interactively (Enter keeps the default).
 #   2. Downloads the matching prebuilt binary + SHA256SUMS from this repo's
 #      latest GitHub Release and verifies the checksum.
-#   3. Runs the binary in the foreground.
+#   3. On Linux with systemd: smoke-tests the binary, then creates and
+#      starts a xrayws.service systemd unit (auto-restarts on failure).
+#      Without systemd or if the smoke test fails: runs in the foreground.
 #
 # The repo is public, so downloading is a plain, unauthenticated `wget`
 # against the public release-asset URLs — no token or `gh` login needed.
@@ -204,13 +206,129 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 4. Run
+# 4. Deploy — smoke-test, then systemd service or foreground exec
 # ---------------------------------------------------------------------------
+
+# Resolve to absolute path so the systemd unit doesn't break when CWD changes.
+INSTALL_DIR="$(cd "$INSTALL_DIR" && pwd)"
+bin_path="$INSTALL_DIR/xrayws"
+ENV_FILE="$INSTALL_DIR/.env"
 
 echo
 echo "Installed: $bin_path"
 echo "Config:    $ENV_FILE"
+
+# --- Detect systemd ---
+has_systemd=false
+if command -v systemctl >/dev/null 2>&1; then
+  # is-system-running exits non-zero for "degraded" / "starting" but those
+  # are fine — systemd IS running, just not every unit is healthy.
+  sys_state="$(systemctl is-system-running 2>/dev/null || true)"
+  case "$sys_state" in
+    running|degraded|starting) has_systemd=true ;;
+  esac
+fi
+
+if [ "$has_systemd" = false ]; then
+  echo "systemd not detected — running in foreground."
+  echo
+  echo "Starting xrayws..."
+  cd "$INSTALL_DIR"
+  exec ./xrayws
+fi
+
+# --- Smoke-test the binary ---
 echo
-echo "Starting xrayws..."
+echo "Smoke-testing xrayws before creating systemd service..."
+
+# Extract probe address from PORT (same logic as Go's TunnelTarget).
+probe_addr="$PORT"
+case "$probe_addr" in
+  *:*) ;; # already host:port
+  *)   probe_addr="127.0.0.1:$probe_addr" ;; # bare port → localhost
+esac
+# If listening on 0.0.0.0, probe on 127.0.0.1 instead.
+case "$probe_addr" in
+  0.0.0.0:*) probe_addr="127.0.0.1:${probe_addr#0.0.0.0:}" ;;
+esac
+
 cd "$INSTALL_DIR"
-exec ./xrayws
+./xrayws > /dev/null 2>&1 &
+smoke_pid=$!
+
+smoke_ok=false
+for i in $(seq 1 15); do
+  sleep 1
+  # TCP probe: try to open a connection and immediately close it.
+  if (echo >/dev/tcp/${probe_addr%:*}/${probe_addr##*:}) 2>/dev/null; then
+    smoke_ok=true
+    break
+  fi
+done
+
+# Clean up the smoke-test process.
+kill "$smoke_pid" 2>/dev/null || true
+wait "$smoke_pid" 2>/dev/null || true
+
+if [ "$smoke_ok" = false ]; then
+  echo
+  echo "Smoke test FAILED — xrayws did not start listening on $probe_addr within 15s."
+  echo "Falling back to foreground mode so you can see errors directly."
+  echo
+  echo "Starting xrayws..."
+  exec ./xrayws
+fi
+
+echo "Smoke test passed — xrayws listening on $probe_addr."
+
+# --- Create systemd service ---
+SERVICE_NAME="xrayws"
+UNIT_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
+
+unit_content="[Unit]
+Description=xray-vless-ws-go proxy
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=$INSTALL_DIR
+ExecStart=$INSTALL_DIR/xrayws
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target"
+
+# Determine if we need sudo.
+do_sudo=""
+if [ "$(id -u)" -ne 0 ]; then
+  do_sudo="sudo"
+fi
+
+# Stop existing service if running (upgrade path).
+if $do_sudo systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
+  echo "Stopping existing $SERVICE_NAME service..."
+  $do_sudo systemctl stop "$SERVICE_NAME"
+fi
+
+echo "Writing $UNIT_FILE ..."
+echo "$unit_content" | $do_sudo tee "$UNIT_FILE" > /dev/null
+
+$do_sudo systemctl daemon-reload
+$do_sudo systemctl enable "$SERVICE_NAME"
+$do_sudo systemctl start "$SERVICE_NAME"
+
+echo
+echo "========================================"
+echo "  xrayws is running as a systemd service"
+echo "========================================"
+echo
+echo "  Status:   sudo systemctl status $SERVICE_NAME"
+echo "  Logs:     sudo journalctl -u $SERVICE_NAME -f"
+echo "  Stop:     sudo systemctl stop $SERVICE_NAME"
+echo "  Restart:  sudo systemctl restart $SERVICE_NAME"
+echo "  Disable:  sudo systemctl disable $SERVICE_NAME"
+echo
+$do_sudo systemctl status "$SERVICE_NAME" --no-pager || true
