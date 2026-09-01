@@ -28,47 +28,70 @@ const (
 
 // Ensure provisions (or re-syncs) the Cloudflare Worker bridge — deploying
 // the Worker script and binding Workers KV to it — and returns the
-// WEBHOOK_URL to use.
+// WEBHOOK_URL to use, plus a TUNNEL_TOKEN when ensureNamedTunnel decided to
+// auto-provision a named Tunnel (see its doc comment for when that applies;
+// "" otherwise, meaning "leave cfg.TunnelToken as-is").
 //
-// It's a no-op ("", nil) when cfg.CloudflareAPIToken or cfg.Domain is empty
-// (decision log #6 in the plan): callers should fall back to
-// cfg.WebhookURL exactly as if this function didn't exist. Any provisioning
-// error is returned, never panics or exits — per decision log #8, the
-// caller (cmd/xrayws/main.go) treats it as a non-fatal warning, the same
-// "independently non-fatal" pattern the rest of the webhook delivery path
-// already uses; this function must never block the tunnel from starting.
-func Ensure(ctx context.Context, cfg *config.Config) (string, error) {
+// It's a no-op ("", "", nil) when cfg.CloudflareAPIToken or cfg.Domain is
+// empty (decision log #6 in the plan): callers should fall back to
+// cfg.WebhookURL/cfg.TunnelToken exactly as if this function didn't exist.
+// Any provisioning error is returned, never panics or exits — per decision
+// log #8, the caller (cmd/xrayws/main.go) treats it as a non-fatal warning,
+// the same "independently non-fatal" pattern the rest of the webhook
+// delivery path already uses; this function must never block the tunnel
+// from starting.
+func Ensure(ctx context.Context, cfg *config.Config) (string, string, error) {
 	if cfg.CloudflareAPIToken == "" || cfg.Domain == "" {
-		return "", nil
+		return "", "", nil
 	}
 
 	cli := newClient(cfg.CloudflareAPIToken)
 
 	accountID, err := resolveAccountID(ctx, cli, cfg.CloudflareAccountID)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	kvNamespaceID, err := ensureKVNamespace(ctx, cli, accountID, kvNamespaceTitle)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	source, err := renderWorkerSource(cfg.WorkerPassword)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	if err := uploadScript(ctx, cli, accountID, scriptName, source, kvNamespaceID); err != nil {
-		return "", err
+		return "", "", err
 	}
 
-	hostname := hostnamePrefix + "." + cfg.Domain
+	hostname := workerHostname(cfg.Domain)
 	if err := attachCustomDomain(ctx, cli, accountID, hostname, scriptName, cfg.Domain); err != nil {
-		return "", err
+		return "", "", err
 	}
 
-	return fmt.Sprintf("https://%s/setapi?password=%s", hostname, url.QueryEscape(cfg.WorkerPassword)), nil
+	webhookURL := fmt.Sprintf("https://%s/setapi?password=%s", hostname, url.QueryEscape(cfg.WorkerPassword))
+
+	// The Worker is already fully deployed and live at this point — a
+	// failure in the (independent) Tunnel auto-provision step below must
+	// not throw webhookURL away too. Return it alongside the error so the
+	// caller (main.go) can still adopt the successful half instead of
+	// falling back to a stale/empty .env value for both.
+	tunnelToken, err := ensureNamedTunnel(ctx, cli, accountID, cfg)
+	if err != nil {
+		return webhookURL, "", err
+	}
+
+	return webhookURL, tunnelToken, nil
+}
+
+// workerHostname is the Worker bridge's custom-domain hostname — shared by
+// Ensure (which attaches it) and ensureNamedTunnel's collision guard (which
+// must refuse to also route a Tunnel DNS record there), so the two can
+// never drift apart.
+func workerHostname(domain string) string {
+	return hostnamePrefix + "." + domain
 }
 
 // renderWorkerSource reads the embedded worker.js template and substitutes
