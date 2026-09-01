@@ -157,6 +157,43 @@ func TestLoadCreatesDefaultEnv(t *testing.T) {
 	}
 }
 
+// TestLoadBlankUUIDGeneratesOne guards against a regression where
+// install.sh writes a literal "XRAY_UUID=" (empty) line into .env when the
+// user accepts the "blank = auto-generate" prompt — godotenv then sets the
+// process env var to "", which os.LookupEnv reports as present, so a plain
+// getenv("XRAY_UUID", fallback) never reaches the fallback and xraycore
+// fatals on "invalid UUID: ". LOG_PASSWORD/WORKER_PASSWORD share the same
+// "blank = auto-generate" contract and must also fall back.
+func TestLoadBlankUUIDGeneratesOne(t *testing.T) {
+	clearEnvKeys(t)
+	dir := t.TempDir()
+	oldWD, _ := os.Getwd()
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(oldWD)
+
+	envContent := "PORT=8888\nXRAY_UUID=\nFAKE_SNI=a.com\nWS_PATH=/p\nWS_HOST=h\nTRANSPORT=websocket\n" +
+		"LOG_PASSWORD=\nWORKER_PASSWORD=\n"
+	if err := os.WriteFile(".env", []byte(envContent), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load(): unexpected error: %v", err)
+	}
+	if cfg.XrayUUID == "" {
+		t.Error("XrayUUID: expected auto-generated UUID for blank .env value, got empty string")
+	}
+	if cfg.LogPassword == "" {
+		t.Error("LogPassword: expected auto-generated password for blank .env value, got empty string")
+	}
+	if cfg.WorkerPassword == "" {
+		t.Error("WorkerPassword: expected auto-generated password for blank .env value, got empty string")
+	}
+}
+
 func TestLoadMalformedPortDoesNotPanic(t *testing.T) {
 	clearEnvKeys(t)
 	dir := t.TempDir()
