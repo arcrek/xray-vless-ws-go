@@ -44,7 +44,7 @@ body {
     display: flex;
     flex-direction: column;
     overflow-x: hidden;
-    background-image: 
+    background-image:
         radial-gradient(at 0% 0%, rgba(47, 129, 247, 0.08) 0px, transparent 50%),
         radial-gradient(at 100% 100%, rgba(163, 113, 247, 0.06) 0px, transparent 50%);
     background-attachment: fixed;
@@ -66,11 +66,26 @@ body {
     background: #484f58;
 }
 
-/* Utility / Layout */
+/* ── Icons ─────────────────────────────────────────────── */
+.icon {
+    flex-shrink: 0;
+    vertical-align: middle;
+}
+.icon-muted {
+    color: var(--text-muted);
+}
+
+/* ── Focus ─────────────────────────────────────────────── */
+:focus-visible {
+    outline: 2px solid var(--accent-blue);
+    outline-offset: 2px;
+}
+
+/* ── Utility ───────────────────────────────────────────── */
 .container {
     max-width: 1280px;
     margin: 0 auto;
-    padding: 20px 24px;
+    padding: 24px;
     width: 100%;
 }
 
@@ -78,7 +93,16 @@ body {
     display: none !important;
 }
 
-/* Header */
+.text-primary {
+    color: var(--text-primary);
+}
+
+.mono-value {
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+}
+
+/* ── Header ────────────────────────────────────────────── */
 .app-header {
     background: var(--bg-card);
     backdrop-filter: var(--glass-blur);
@@ -108,9 +132,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-weight: 800;
     color: #fff;
-    font-size: 16px;
     box-shadow: 0 2px 8px rgba(47, 129, 247, 0.4);
 }
 .logo-title {
@@ -119,24 +141,14 @@ body {
     letter-spacing: -0.3px;
     color: var(--text-primary);
 }
-.logo-badge {
-    font-size: 11px;
-    font-weight: 600;
-    padding: 2px 8px;
-    background: rgba(47, 129, 247, 0.15);
-    color: var(--accent-blue);
-    border: 1px solid rgba(47, 129, 247, 0.3);
-    border-radius: 20px;
-    text-transform: uppercase;
-}
 
 .header-actions {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
 }
 
-/* Buttons */
+/* ── Buttons ───────────────────────────────────────────── */
 .btn {
     display: inline-flex;
     align-items: center;
@@ -147,12 +159,13 @@ body {
     font-weight: 600;
     border-radius: var(--radius-sm);
     cursor: pointer;
-    transition: all 0.15s ease-in-out;
+    transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
     border: 1px solid var(--border-color);
     background: var(--bg-secondary);
     color: var(--text-primary);
     text-decoration: none;
     font-family: inherit;
+    white-space: nowrap;
 }
 .btn:hover {
     background: var(--bg-card-hover);
@@ -194,11 +207,19 @@ body {
     font-size: 12px;
 }
 .btn-icon {
-    padding: 6px;
+    padding: 4px;
     border-radius: var(--radius-sm);
 }
+.btn-login {
+    padding: 10px;
+    font-size: 14px;
+    margin-top: 8px;
+}
+.btn-full {
+    width: 100%;
+}
 
-/* Cards & Grid */
+/* ── Cards & Grid ──────────────────────────────────────── */
 .dashboard-grid {
     display: flex;
     flex-direction: column;
@@ -218,15 +239,22 @@ body {
     border-color: #484f58;
 }
 .card-header {
-    padding: 16px 20px;
+    padding: 14px 20px;
     border-bottom: 1px solid var(--border-color);
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 12px;
     background: rgba(255, 255, 255, 0.02);
+    flex-wrap: wrap;
+}
+.card-header-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
 }
 .card-title {
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 700;
     display: flex;
     align-items: center;
@@ -236,12 +264,15 @@ body {
 .card-body {
     padding: 20px;
 }
+.card-body-logs {
+    padding: 12px;
+}
 
-/* Status Cards Grid */
+/* ── Status Cards Grid ─────────────────────────────────── */
 .status-cards-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 16px;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 14px;
 }
 .status-box {
     background: rgba(13, 17, 23, 0.6);
@@ -256,7 +287,7 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
     color: var(--text-secondary);
     text-transform: uppercase;
@@ -275,7 +306,18 @@ body {
     color: var(--text-muted);
 }
 
-/* Status Indicators */
+/* Status value variants */
+.hostname-value {
+    font-size: 13px;
+    font-family: var(--font-mono);
+    color: var(--accent-cyan);
+}
+.uptime-value {
+    font-family: var(--font-mono);
+    color: var(--accent-yellow);
+}
+
+/* ── Status Indicators ─────────────────────────────────── */
 .dot {
     width: 9px;
     height: 9px;
@@ -283,6 +325,7 @@ body {
     display: inline-block;
     background: var(--text-muted);
     position: relative;
+    flex-shrink: 0;
 }
 .dot-on {
     background: var(--accent-green-bright);
@@ -301,10 +344,10 @@ body {
     100% { transform: scale(0.95); opacity: 0.8; }
 }
 
-/* VLESS & Subscription Section */
+/* ── VLESS & Subscription Section ──────────────────────── */
 .vless-section {
     display: grid;
-    grid-template-columns: 1fr 320px;
+    grid-template-columns: 1fr 300px;
     gap: 20px;
 }
 @media (max-width: 960px) {
@@ -318,6 +361,12 @@ body {
     flex-direction: column;
     gap: 12px;
 }
+.vless-placeholder {
+    color: var(--text-secondary);
+    font-size: 13px;
+    padding: 20px;
+    text-align: center;
+}
 .vless-node-card {
     background: rgba(13, 17, 23, 0.7);
     border: 1px solid var(--border-color);
@@ -326,7 +375,7 @@ body {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    transition: all 0.15s ease;
+    transition: border-color 0.15s, background 0.15s;
 }
 .vless-node-card:hover {
     border-color: var(--accent-blue);
@@ -336,6 +385,8 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
 }
 .node-name {
     font-size: 14px;
@@ -348,6 +399,7 @@ body {
 .node-tags {
     display: flex;
     gap: 6px;
+    flex-wrap: wrap;
 }
 .tag {
     font-size: 11px;
@@ -357,6 +409,7 @@ body {
     background: rgba(255, 255, 255, 0.06);
     color: var(--text-secondary);
     border: 1px solid rgba(255, 255, 255, 0.08);
+    white-space: nowrap;
 }
 .tag-tls {
     color: var(--accent-green-bright);
@@ -382,7 +435,7 @@ body {
     justify-content: flex-end;
 }
 
-/* Subscription & QR Card */
+/* ── Subscription & QR Card ────────────────────────────── */
 .sub-card {
     display: flex;
     flex-direction: column;
@@ -395,6 +448,11 @@ body {
     padding: 20px;
     gap: 14px;
 }
+.sub-card-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
 .qr-preview-wrapper {
     background: #ffffff;
     padding: 12px;
@@ -404,7 +462,7 @@ body {
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    transition: transform 0.2s;
+    transition: transform 0.2s, border-color 0.2s;
     border: 2px solid transparent;
 }
 .qr-preview-wrapper:hover {
@@ -422,7 +480,7 @@ body {
     line-height: 1.4;
 }
 
-/* Throughput Chart */
+/* ── Throughput Chart ──────────────────────────────────── */
 .throughput-section {
     display: flex;
     flex-direction: column;
@@ -466,23 +524,41 @@ body {
     display: block;
 }
 
-/* Realtime Logs */
+.throughput-totals {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+/* ── Realtime Logs ─────────────────────────────────────── */
 .log-controls {
     display: flex;
-    gap: 10px;
+    gap: 8px;
     flex-wrap: wrap;
     align-items: center;
+}
+.log-controls-search {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+.search-icon {
+    position: absolute;
+    left: 10px;
+    color: var(--text-muted);
+    pointer-events: none;
 }
 .search-input {
     background: var(--bg-input);
     border: 1px solid var(--border-color);
     color: var(--text-primary);
-    padding: 6px 12px;
+    padding: 6px 12px 6px 32px;
     border-radius: var(--radius-sm);
     font-size: 13px;
     outline: none;
     font-family: inherit;
-    min-width: 180px;
+    min-width: 160px;
 }
 .search-input:focus {
     border-color: var(--border-focus);
@@ -498,13 +574,18 @@ body {
     outline: none;
     cursor: pointer;
 }
+.log-controls-actions {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
 
 #log-container {
     background: #090d13;
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
     padding: 14px;
-    height: 460px;
+    height: clamp(300px, 50vh, 520px);
     overflow-y: auto;
     font-family: var(--font-mono);
     font-size: 12px;
@@ -513,6 +594,11 @@ body {
     display: flex;
     flex-direction: column;
     gap: 2px;
+}
+.log-placeholder {
+    color: var(--text-muted);
+    font-style: italic;
+    padding: 10px;
 }
 .log-entry {
     display: flex;
@@ -549,7 +635,7 @@ body {
 .log-type-warn { color: var(--accent-yellow); }
 .log-message { flex-grow: 1; }
 
-/* Login View */
+/* ── Login View ────────────────────────────────────────── */
 .login-wrapper {
     display: flex;
     align-items: center;
@@ -644,6 +730,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
+    border-radius: var(--radius-sm);
 }
 .input-icon-btn:hover {
     color: var(--text-primary);
@@ -658,7 +745,7 @@ body {
     font-size: 13px;
 }
 
-/* Modals */
+/* ── Modals ────────────────────────────────────────────── */
 .modal-backdrop {
     position: fixed;
     top: 0;
@@ -705,8 +792,12 @@ body {
     border: none;
     color: var(--text-secondary);
     cursor: pointer;
-    font-size: 20px;
-    line-height: 1;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+    transition: color 0.15s;
 }
 .modal-close:hover {
     color: var(--text-primary);
@@ -726,6 +817,15 @@ body {
     max-width: 280px;
     max-height: 280px;
 }
+.modal-qr-desc {
+    font-size: 13px;
+    color: var(--text-secondary);
+    text-align: center;
+    word-break: break-all;
+    max-height: 80px;
+    overflow-y: auto;
+    padding: 4px;
+}
 .modal-footer {
     padding: 14px 20px;
     border-top: 1px solid var(--border-color);
@@ -735,7 +835,7 @@ body {
     background: rgba(0, 0, 0, 0.15);
 }
 
-/* Toast Notifications */
+/* ── Toast Notifications ───────────────────────────────── */
 #toast-container {
     position: fixed;
     bottom: 24px;
@@ -766,7 +866,61 @@ body {
 .toast-error {
     border-color: var(--accent-red-bright);
 }
+.toast-icon {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+}
 @keyframes toast-in {
     from { opacity: 0; transform: translateY(12px); }
     to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Responsive ────────────────────────────────────────── */
+@media (max-width: 768px) {
+    .container {
+        padding: 16px;
+    }
+    .header-content {
+        padding: 10px 16px;
+    }
+    .card-header {
+        padding: 12px 16px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+    .card-body {
+        padding: 16px;
+    }
+    .card-body-logs {
+        padding: 10px;
+    }
+    .log-controls {
+        gap: 6px;
+    }
+    .log-controls-search {
+        width: 100%;
+    }
+    .search-input {
+        width: 100%;
+        min-width: 0;
+    }
+    .select-input {
+        flex: 1;
+        min-width: 0;
+    }
+    .throughput-totals {
+        flex-direction: column;
+        gap: 4px;
+    }
+    .status-cards-grid {
+        grid-template-columns: 1fr;
+    }
+    .card-header-actions {
+        width: 100%;
+    }
+    .card-header-actions .btn {
+        flex: 1;
+    }
 }

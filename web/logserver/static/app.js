@@ -8,6 +8,18 @@ let logsInterval = null;
 let vlessInterval = null;
 let modalCurrentContent = "";
 
+// SVG Icon Templates (inline, no external dependencies)
+const ICONS = {
+    check: '<svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+    alertCircle: '<svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>',
+    copy: '<svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>',
+    qr: '<svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="8" height="8" rx="1"/><rect x="14" y="2" width="8" height="8" rx="1"/><rect x="2" y="14" width="8" height="8" rx="1"/><rect x="14" y="14" width="4" height="4" rx="1"/><line x1="22" y1="18" x2="22" y2="22"/><line x1="18" y1="22" x2="22" y2="22"/></svg>',
+    bolt: '<svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
+    eye: '<svg class="icon-eye" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>',
+    eyeOff: '<svg class="icon-eye" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>',
+    chevronDown: '<svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>',
+};
+
 // DOM Elements
 const loginView = document.getElementById("login-view");
 const dashboardView = document.getElementById("dashboard-view");
@@ -71,7 +83,15 @@ function showToast(message, type = "success") {
 
     const toast = document.createElement("div");
     toast.className = `toast toast-${type}`;
-    toast.textContent = (type === "success" ? "✓ " : "⚠️ ") + message;
+
+    const iconSpan = document.createElement("span");
+    iconSpan.className = "toast-icon";
+    iconSpan.innerHTML = type === "success" ? ICONS.check : ICONS.alertCircle;
+    toast.appendChild(iconSpan);
+
+    const textSpan = document.createElement("span");
+    textSpan.textContent = message;
+    toast.appendChild(textSpan);
 
     container.appendChild(toast);
     setTimeout(() => {
@@ -83,7 +103,7 @@ function showToast(message, type = "success") {
 }
 
 // Copy Helper
-async function copyToClipboard(text, successMsg = "Đã sao chép vào clipboard!") {
+async function copyToClipboard(text, successMsg = "Da sao chep vao clipboard!") {
     if (!text) return;
     try {
         if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -101,7 +121,7 @@ async function copyToClipboard(text, successMsg = "Đã sao chép vào clipboard
         showToast(successMsg, "success");
     } catch (e) {
         console.error("Copy failed:", e);
-        showToast("Không thể sao chép tự động", "error");
+        showToast("Khong the sao chep tu dong", "error");
     }
 }
 
@@ -129,43 +149,31 @@ function formatUptime(sec) {
 // Parse VLESS URL for human readable display
 function parseVlessUrl(url) {
     try {
-        if (!url.startsWith("vless://")) return { remark: "VLESS Node", host: "—", port: "—", path: "—", type: "ws" };
-        const withoutProto = url.slice(8);
-        const atIdx = withoutProto.indexOf("@");
-        const questionIdx = withoutProto.indexOf("?");
-        const hashIdx = withoutProto.indexOf("#");
-
-        const uuid = atIdx > 0 ? withoutProto.substring(0, atIdx) : "";
-        let hostPort = "";
-        if (atIdx >= 0) {
-            const endHost = questionIdx >= 0 ? questionIdx : (hashIdx >= 0 ? hashIdx : withoutProto.length);
-            hostPort = withoutProto.substring(atIdx + 1, endHost);
-        }
-
-        let remark = "VLESS Node";
-        if (hashIdx >= 0) {
-            remark = decodeURIComponent(withoutProto.substring(hashIdx + 1));
-        }
-
-        let params = new URLSearchParams();
-        if (questionIdx >= 0) {
-            const queryStr = hashIdx >= 0 ? withoutProto.substring(questionIdx + 1, hashIdx) : withoutProto.substring(questionIdx + 1);
-            params = new URLSearchParams(queryStr);
-        }
-
+        if (!url.startsWith("vless://")) return { remark: url, host: "", port: "", security: "", type: "" };
+        const withoutProto = url.substring(8);
+        const hashIdx = withoutProto.lastIndexOf("#");
+        let remark = hashIdx > -1 ? decodeURIComponent(withoutProto.substring(hashIdx + 1)) : "Node";
+        const mainPart = hashIdx > -1 ? withoutProto.substring(0, hashIdx) : withoutProto;
+        const atIdx = mainPart.indexOf("@");
+        const hostPortQuery = mainPart.substring(atIdx + 1);
+        const qIdx = hostPortQuery.indexOf("?");
+        const hostPort = qIdx > -1 ? hostPortQuery.substring(0, qIdx) : hostPortQuery;
+        const queryStr = qIdx > -1 ? hostPortQuery.substring(qIdx + 1) : "";
+        const parts = hostPort.split(":");
+        const host = parts[0];
+        const port = parts[1] || "443";
+        const params = new URLSearchParams(queryStr);
         return {
-            uuid: uuid,
-            hostPort: hostPort,
-            host: params.get("host") || hostPort.split(":")[0],
-            port: hostPort.split(":")[1] || "443",
-            path: params.get("path") || "/",
-            type: params.get("type") || "ws",
+            remark: remark,
+            host: host,
+            port: port,
             security: params.get("security") || "tls",
-            sni: params.get("sni") || params.get("host") || "",
-            remark: remark
+            type: params.get("type") || "ws",
+            sni: params.get("sni") || "",
+            path: params.get("path") || "",
         };
     } catch (e) {
-        return { remark: "VLESS Node", hostPort: "—", host: "—", port: "443", path: "/", type: "ws", security: "tls" };
+        return { remark: url, host: "", port: "", security: "", type: "" };
     }
 }
 
@@ -174,8 +182,8 @@ function renderVlessView(data) {
     vlessData = data;
     if (!data || !data.ready || !data.links || data.links.length === 0) {
         vlessNodesContainer.innerHTML = `
-            <div style="color: var(--text-secondary); font-size: 13px; padding: 24px; text-align: center; border: 1px dashed var(--border-color); border-radius: var(--radius-md);">
-                ⏳ Đang chờ Cloudflare Tunnel khởi tạo cấu hình VLESS...
+            <div class="vless-placeholder" style="border: 1px dashed var(--border-color); border-radius: var(--radius-md); padding: 24px;">
+                Dang cho Cloudflare Tunnel khoi tao cau hinh VLESS...
             </div>
         `;
         const ctx = subQrCanvas.getContext("2d");
@@ -195,7 +203,8 @@ function renderVlessView(data) {
 
         const nameDiv = document.createElement("div");
         nameDiv.className = "node-name";
-        nameDiv.textContent = `⚡ ${parsed.remark}`;
+        nameDiv.innerHTML = ICONS.bolt + " ";
+        nameDiv.appendChild(document.createTextNode(parsed.remark));
         headerDiv.appendChild(nameDiv);
 
         const tagsDiv = document.createElement("div");
@@ -230,14 +239,14 @@ function renderVlessView(data) {
 
         const btnQr = document.createElement("button");
         btnQr.className = "btn btn-sm";
-        btnQr.textContent = "📱 Xem QR";
-        btnQr.addEventListener("click", () => openQrModal(link, `Mã QR: ${parsed.remark}`));
+        btnQr.innerHTML = ICONS.qr + " Xem QR";
+        btnQr.addEventListener("click", () => openQrModal(link, `Ma QR: ${parsed.remark}`));
         actionsDiv.appendChild(btnQr);
 
         const btnCopy = document.createElement("button");
         btnCopy.className = "btn btn-primary btn-sm";
-        btnCopy.textContent = "📋 Sao chép Link";
-        btnCopy.addEventListener("click", () => copyToClipboard(link, `Đã sao chép node [${parsed.remark}]!`));
+        btnCopy.innerHTML = ICONS.copy + " Sao chep Link";
+        btnCopy.addEventListener("click", () => copyToClipboard(link, `Da sao chep node [${parsed.remark}]!`));
         actionsDiv.appendChild(btnCopy);
 
         card.appendChild(actionsDiv);
@@ -261,7 +270,7 @@ function renderVlessView(data) {
 }
 
 // Modal Handling
-function openQrModal(content, title = "Mã QR") {
+function openQrModal(content, title = "Ma QR") {
     modalCurrentContent = content;
     modalQrTitle.textContent = title;
     modalQrDesc.textContent = content;
@@ -338,63 +347,78 @@ function drawSparkline(history) {
     if (!sparklineCanvas) return;
     const ctx = sparklineCanvas.getContext("2d");
     const dpr = window.devicePixelRatio || 1;
-
     const rect = sparklineCanvas.getBoundingClientRect();
     sparklineCanvas.width = rect.width * dpr;
     sparklineCanvas.height = rect.height * dpr;
     ctx.scale(dpr, dpr);
 
-    const width = rect.width;
-    const height = rect.height;
+    const W = rect.width;
+    const H = rect.height;
+    ctx.clearRect(0, 0, W, H);
 
-    ctx.clearRect(0, 0, width, height);
-
-    if (!history || history.length === 0) {
+    if (!history || history.length < 2) {
         ctx.fillStyle = "#6e7681";
         ctx.font = "12px sans-serif";
-        ctx.fillText("Đang thu thập mẫu lưu lượng...", 15, height / 2);
+        ctx.textAlign = "center";
+        ctx.fillText("Dang thu thap du lieu...", W / 2, H / 2);
         return;
     }
 
-    let maxVal = 1024; // baseline min 1KB/s
-    history.forEach(pt => {
-        if (pt.up_bps > maxVal) maxVal = pt.up_bps;
-        if (pt.down_bps > maxVal) maxVal = pt.down_bps;
-    });
+    const upVals = history.map(h => h.up || 0);
+    const downVals = history.map(h => h.down || 0);
+    const maxVal = Math.max(...upVals, ...downVals, 1);
+    const padding = { top: 8, bottom: 8, left: 0, right: 0 };
+    const chartW = W - padding.left - padding.right;
+    const chartH = H - padding.top - padding.bottom;
 
-    const step = width / Math.max(history.length - 1, 1);
+    function drawLine(values, color, fillColor) {
+        const len = values.length;
+        const step = chartW / (len - 1);
 
-    // Draw Gridlines
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.05)";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(0, height * 0.25); ctx.lineTo(width, height * 0.25);
-    ctx.moveTo(0, height * 0.5); ctx.lineTo(width, height * 0.5);
-    ctx.moveTo(0, height * 0.75); ctx.lineTo(width, height * 0.75);
-    ctx.stroke();
-
-    // Helper to draw smooth series
-    function drawSeries(key, color, glowColor) {
         ctx.beginPath();
-        history.forEach((pt, i) => {
-            const val = pt[key] || 0;
-            const x = i * step;
-            const y = height - (val / maxVal) * (height - 16) - 8;
+        for (let i = 0; i < len; i++) {
+            const x = padding.left + i * step;
+            const y = padding.top + chartH - (values[i] / maxVal) * chartH;
             if (i === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
-        });
+            else {
+                const prevX = padding.left + (i - 1) * step;
+                const prevY = padding.top + chartH - (values[i - 1] / maxVal) * chartH;
+                const cpX = (prevX + x) / 2;
+                ctx.bezierCurveTo(cpX, prevY, cpX, y, x, y);
+            }
+        }
 
+        // Fill gradient
+        const gradient = ctx.createLinearGradient(0, padding.top, 0, H);
+        gradient.addColorStop(0, fillColor);
+        gradient.addColorStop(1, "transparent");
+
+        ctx.lineTo(padding.left + (len - 1) * step, H);
+        ctx.lineTo(padding.left, H);
+        ctx.closePath();
+        ctx.fillStyle = gradient;
+        ctx.fill();
+
+        // Stroke line
+        ctx.beginPath();
+        for (let i = 0; i < len; i++) {
+            const x = padding.left + i * step;
+            const y = padding.top + chartH - (values[i] / maxVal) * chartH;
+            if (i === 0) ctx.moveTo(x, y);
+            else {
+                const prevX = padding.left + (i - 1) * step;
+                const prevY = padding.top + chartH - (values[i - 1] / maxVal) * chartH;
+                const cpX = (prevX + x) / 2;
+                ctx.bezierCurveTo(cpX, prevY, cpX, y, x, y);
+            }
+        }
         ctx.strokeStyle = color;
-        ctx.lineWidth = 2;
-        ctx.shadowColor = glowColor;
-        ctx.shadowBlur = 6;
+        ctx.lineWidth = 1.5;
         ctx.stroke();
-        ctx.shadowBlur = 0;
     }
 
-    // Downlink (Cyan) & Uplink (Green)
-    drawSeries("down_bps", "#38bdf8", "rgba(56, 189, 248, 0.4)");
-    drawSeries("up_bps", "#3fb950", "rgba(63, 185, 80, 0.4)");
+    drawLine(upVals, "#3fb950", "rgba(63, 185, 80, 0.12)");
+    drawLine(downVals, "#38bdf8", "rgba(56, 189, 248, 0.12)");
 }
 
 // Fetch Stats
@@ -412,31 +436,31 @@ async function fetchStats() {
         // Xray Status
         if (data.xray_up) {
             dotXray.className = "dot dot-on";
-            xrayState.textContent = "Hoạt động (Online)";
+            xrayState.textContent = "Hoat dong (Online)";
             xrayState.style.color = "var(--accent-green-bright)";
         } else {
             dotXray.className = "dot dot-off";
-            xrayState.textContent = "Ngắt kết nối";
+            xrayState.textContent = "Ngat ket noi";
             xrayState.style.color = "var(--accent-red-bright)";
         }
 
         // Tunnel Status
         if (data.tunnel_ready) {
             dotTunnel.className = "dot dot-on";
-            tunnelState.textContent = "Đã kết nối (Ready)";
+            tunnelState.textContent = "Da ket noi (Ready)";
             tunnelState.style.color = "var(--accent-green-bright)";
-            overallStatusBadge.textContent = "● Tunnel Hoạt động";
+            overallStatusBadge.textContent = "Tunnel Hoat dong";
             overallStatusBadge.className = "tag tag-tls";
         } else {
             dotTunnel.className = "dot dot-off";
-            tunnelState.textContent = "Đang kết nối...";
+            tunnelState.textContent = "Dang ket noi...";
             tunnelState.style.color = "var(--accent-yellow)";
-            overallStatusBadge.textContent = "Đang kết nối Tunnel...";
+            overallStatusBadge.textContent = "Dang ket noi Tunnel...";
             overallStatusBadge.className = "tag";
         }
 
         readyConnections.textContent = data.ready_connections || 0;
-        hostnameElem.textContent = data.hostname || "Chưa có Hostname";
+        hostnameElem.textContent = data.hostname || "Chua co Hostname";
         uptimeElem.textContent = formatUptime(data.uptime_sec);
 
         upBpsElem.textContent = formatBps(data.uplink_bps);
@@ -594,10 +618,10 @@ function initEventListeners() {
     togglePasswordBtn.addEventListener("click", () => {
         if (passwordInput.type === "password") {
             passwordInput.type = "text";
-            togglePasswordBtn.textContent = "🙈";
+            togglePasswordBtn.innerHTML = ICONS.eyeOff;
         } else {
             passwordInput.type = "password";
-            togglePasswordBtn.textContent = "👁️";
+            togglePasswordBtn.innerHTML = ICONS.eye;
         }
     });
 
@@ -606,7 +630,7 @@ function initEventListeners() {
         e.preventDefault();
         loginError.classList.add("hidden");
         loginSubmitBtn.disabled = true;
-        loginSubmitBtn.textContent = "Đang xác thực...";
+        loginSubmitBtn.textContent = "Dang xac thuc...";
 
         try {
             const res = await fetch("/api/login", {
@@ -617,19 +641,19 @@ function initEventListeners() {
 
             const data = await res.json();
             if (res.ok && data.ok) {
-                showToast("Đăng nhập thành công!", "success");
+                showToast("Dang nhap thanh cong!", "success");
                 showDashboard(true);
             } else {
-                loginError.textContent = data.error || "Mật khẩu không chính xác!";
+                loginError.textContent = data.error || "Mat khau khong chinh xac!";
                 loginError.classList.remove("hidden");
                 passwordInput.select();
             }
         } catch (err) {
-            loginError.textContent = "Không thể kết nối đến máy chủ!";
+            loginError.textContent = "Khong the ket noi den may chu!";
             loginError.classList.remove("hidden");
         } finally {
             loginSubmitBtn.disabled = false;
-            loginSubmitBtn.textContent = "Đăng nhập";
+            loginSubmitBtn.textContent = "Dang nhap";
         }
     });
 
@@ -637,7 +661,7 @@ function initEventListeners() {
     btnLogout.addEventListener("click", async () => {
         try {
             await fetch("/api/logout", { method: "POST" });
-            showToast("Đã đăng xuất", "success");
+            showToast("Da dang xuat", "success");
             showLogin();
         } catch (e) {
             showLogin();
@@ -649,25 +673,25 @@ function initEventListeners() {
         fetchStats();
         fetchVlessInfo();
         fetchLogs();
-        showToast("Đã làm mới dữ liệu", "success");
+        showToast("Da lam moi du lieu", "success");
     });
 
     // Copy Hostname
     copyHostnameBtn.addEventListener("click", () => {
-        copyToClipboard(hostnameElem.textContent, "Đã sao chép Hostname!");
+        copyToClipboard(hostnameElem.textContent, "Da sao chep Hostname!");
     });
 
     // Copy Base64 Subscription
     btnCopySubB64.addEventListener("click", () => {
         if (vlessData && vlessData.base64_config) {
-            copyToClipboard(vlessData.base64_config, "Đã sao chép chuỗi Base64 Subscription!");
+            copyToClipboard(vlessData.base64_config, "Da sao chep chuoi Base64 Subscription!");
         }
     });
 
     // Copy Raw Config
     btnCopyRawConfig.addEventListener("click", () => {
         if (vlessData && vlessData.raw_config) {
-            copyToClipboard(vlessData.raw_config, "Đã sao chép nội dung frp_info.config!");
+            copyToClipboard(vlessData.raw_config, "Da sao chep noi dung frp_info.config!");
         }
     });
 
@@ -683,14 +707,14 @@ function initEventListeners() {
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-            showToast("Đã tải xuống file frp_info.config", "success");
+            showToast("Da tai xuong file frp_info.config", "success");
         }
     });
 
     // QR Preview Box Zoom Click
     qrPreviewBox.addEventListener("click", () => {
         if (vlessData && vlessData.base64_config) {
-            openQrModal(vlessData.base64_config, "Mã QR Subscription (Base64)");
+            openQrModal(vlessData.base64_config, "Ma QR Subscription (Base64)");
         }
     });
 
@@ -702,7 +726,7 @@ function initEventListeners() {
     });
 
     btnModalCopy.addEventListener("click", () => {
-        copyToClipboard(modalCurrentContent, "Đã sao chép nội dung mã QR!");
+        copyToClipboard(modalCurrentContent, "Da sao chep noi dung ma QR!");
     });
 
     // Log Controls
@@ -712,13 +736,13 @@ function initEventListeners() {
 
     btnToggleScroll.addEventListener("click", () => {
         isAutoScroll = !isAutoScroll;
-        btnToggleScroll.textContent = isAutoScroll ? "⬇️ Auto-scroll: Bật" : "⏸️ Auto-scroll: Tắt";
+        btnToggleScroll.innerHTML = (isAutoScroll ? ICONS.chevronDown : ICONS.chevronDown) + (isAutoScroll ? " Auto-scroll" : " Paused");
         btnToggleScroll.className = isAutoScroll ? "btn btn-sm" : "btn btn-sm btn-danger";
     });
 
     btnClearLogs.addEventListener("click", () => {
-        logContainer.innerHTML = `<div style="color: var(--text-muted); font-style: italic; padding: 10px;">Đã xóa nhật ký hiển thị.</div>`;
-        showToast("Đã xóa nhật ký trên giao diện", "success");
+        logContainer.innerHTML = `<div class="log-placeholder">Da xoa nhat ky hien thi.</div>`;
+        showToast("Da xoa nhat ky tren giao dien", "success");
     });
 
     btnCopyLogs.addEventListener("click", () => {
@@ -729,7 +753,7 @@ function initEventListeners() {
                 lines.push(e.textContent.trim());
             }
         });
-        copyToClipboard(lines.join("\n"), "Đã sao chép toàn bộ nhật ký hiển thị!");
+        copyToClipboard(lines.join("\n"), "Da sao chep toan bo nhat ky hien thi!");
     });
 }
 
