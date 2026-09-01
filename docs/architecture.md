@@ -85,7 +85,7 @@ Fixed constants (not env-configurable, YAGNI): script name `xray-vless-ws-bridge
 | 1 | Trigger | Reuse existing fields, no new env vars: fires when `CLOUDFLARE_API_TOKEN`+`DOMAIN` are set, `TUNNEL_TOKEN` is blank, and `WS_HOST` is a real hostname (not the quick-tunnel default) | A dedicated `AUTO_TUNNEL=true` flag |
 | 2 | Token persistence | Never written to `.env` — fetched fresh from `GET .../cfd_tunnel/{id}/token` on every run, same as `cloudflared tunnel token` is re-runnable any time | Write back to `.env` like a generated password (adds a write-back code path this package didn't have) |
 | 3 | Idempotency | Tunnel found-or-created by fixed name (`xray-vless-ws-bridge-tunnel`, list-then-create, same idiom as `ensureKVNamespace`); DNS CNAME found-and-left-alone if already correct, patched if stale, created if absent | Always delete+recreate |
-| 4 | Config source | `config_src: cloudflare` (remotely-managed) tunnel at creation, but ingress is still driven by the **local** `config.yml` `internal/tunnel` already writes from `TUNNEL_TOKEN`+`WS_HOST` — no remote ingress API call needed, `internal/tunnel` is untouched | Push ingress rules via `PUT .../cfd_tunnel/{id}/configurations` too (would duplicate `WriteNamedTunnelConfig`'s job) |
+| 4 | Config source | `config_src: cloudflare` (remotely-managed) tunnel at creation, but ingress is still driven by the **local** `config.yml` `internal/tunnel` writes from `WS_HOST` — no remote ingress API call needed | Push ingress rules via `PUT .../cfd_tunnel/{id}/configurations` too (would duplicate `WriteNamedTunnelConfig`'s job) |
 | 5 | Hostname collision guard | Refuse (log + no-op, not fatal) when `WS_HOST` equals the Worker's own `vless.DOMAIN` hostname — that hostname's DNS is already claimed by the Workers custom-domain route | Let the DNS record create call fail on its own |
 | 6 | Zone scope | Only ever resolves `DOMAIN`'s own zone (`GET /zones?name=DOMAIN`) — `WS_HOST` must be `DOMAIN` or a subdomain of it | Resolve any zone the token can see (would need listing all zones + suffix-matching) |
 
@@ -105,6 +105,20 @@ Fixed constants (not env-configurable, YAGNI): script name `xray-vless-ws-bridge
   against an already-attached domain sends the webhook successfully; no
   retry/backoff was added since the non-fatal fallback already absorbs it
   and the next run self-heals.
+
+## Live-test notes (2026-09-01) — named Tunnel auto-provision
+
+- **Bug found in first real run**: `internal/tunnel`'s `WriteNamedTunnelConfig`
+  put `TUNNEL_TOKEN` into config.yml's `tunnel:` field. That field means a
+  tunnel UUID/name for the legacy local-credentials (`cert.pem`) flow, not
+  a token — cloudflared tried to resolve it as an ID, found no `cert.pem`,
+  and crash-looped: `error parsing tunnel ID: Error locating origin cert`.
+  This path was never live-tested with a real token before (the only prior
+  named-tunnel exercise was a manually-typed, invalid token that failed
+  earlier, at token *parsing*, never reaching this code). Fixed by dropping
+  `tunnel:` from config.yml entirely and passing the token via cloudflared's
+  `--token` flag instead (`internal/tunnel/launch.go`) — config.yml now
+  carries ingress rules only.
 
 ## `.env` reference
 

@@ -56,11 +56,15 @@ func Launch(cfg *config.Config, binPath, workDir string) (*Handle, error) {
 
 	if named {
 		configPath := filepath.Join(workDir, "config.yml")
-		if err := WriteNamedTunnelConfig(configPath, cfg.TunnelToken, cfg.WSHost, cfg.TargetIP, cfg.TargetPort); err != nil {
+		if err := WriteNamedTunnelConfig(configPath, cfg.WSHost, cfg.TargetIP, cfg.TargetPort); err != nil {
 			return nil, fmt.Errorf("tunnel: writing config.yml: %w", err)
 		}
 		fmt.Println("[*] Launching Cloudflare Tunnel (named tunnel via config.yml)...")
-		cmd = exec.Command(binPath, "tunnel", "--config", configPath, "--metrics", metricsAddr, "run")
+		// --token authenticates the tunnel; config.yml supplies only the
+		// ingress rules (see WriteNamedTunnelConfig's doc comment for why
+		// the token must NOT go in config.yml's `tunnel:` field).
+		cmd = exec.Command(binPath, "tunnel", "--config", configPath, "--metrics", metricsAddr,
+			"--token", cfg.TunnelToken, "run")
 	} else {
 		fmt.Printf("[*] Launching Cloudflare Tunnel pointing to http://%s:%d...\n", cfg.TargetIP, cfg.TargetPort)
 		cmd = exec.Command(binPath, "tunnel", "--protocol", "http2", "--metrics", metricsAddr,

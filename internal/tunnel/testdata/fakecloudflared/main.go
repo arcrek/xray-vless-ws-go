@@ -5,7 +5,7 @@
 // convincing double:
 //
 //	fakecloudflared tunnel --protocol http2 --metrics <addr> --url <url>
-//	fakecloudflared tunnel --config <path> --metrics <addr> run
+//	fakecloudflared tunnel --config <path> --metrics <addr> --token <token> run
 //
 // Behavior is controlled by env vars so the test can script different
 // scenarios:
@@ -36,6 +36,7 @@ func main() {
 	_ = flag.String("protocol", "", "")
 	_ = flag.String("url", "", "")
 	_ = flag.String("config", "", "")
+	_ = flag.String("token", "", "")
 	flag.CommandLine.Parse(os.Args[2:]) // skip the "tunnel" subcommand token
 
 	if os.Getenv("FAKE_CF_IGNORE_SIGINT") == "1" {
