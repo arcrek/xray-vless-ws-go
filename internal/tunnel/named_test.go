@@ -53,17 +53,27 @@ func TestLaunchNamedTunnelPassesTokenAsFlagNotInConfig(t *testing.T) {
 	t.Cleanup(func() { h.Kill(); h.Wait() })
 
 	args := h.Cmd.Args
-	found := false
+	runIdx := -1
+	tokenIdx := -1
 	for i, a := range args {
+		if a == "run" {
+			runIdx = i
+		}
 		if a == "--token" {
-			found = true
+			tokenIdx = i
 			if i+1 >= len(args) || args[i+1] != cfg.TunnelToken {
 				t.Errorf("--token flag not followed by the configured token, args = %v", args)
 			}
 		}
 	}
-	if !found {
+	if runIdx == -1 {
+		t.Errorf("expected 'run' subcommand in cloudflared args, got %v", args)
+	}
+	if tokenIdx == -1 {
 		t.Errorf("expected --token in cloudflared args, got %v", args)
+	}
+	if runIdx != -1 && tokenIdx != -1 && runIdx > tokenIdx {
+		t.Errorf("expected 'run' to precede '--token' in cloudflared args (subcommand flags must follow the subcommand), got %v", args)
 	}
 
 	content, err := os.ReadFile(filepath.Join(workDir, "config.yml"))

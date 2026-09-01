@@ -5,7 +5,7 @@
 // convincing double:
 //
 //	fakecloudflared tunnel --protocol http2 --metrics <addr> --url <url>
-//	fakecloudflared tunnel --config <path> --metrics <addr> --token <token> run
+//	fakecloudflared tunnel --config <path> --metrics <addr> run --token <token>
 //
 // Behavior is controlled by env vars so the test can script different
 // scenarios:

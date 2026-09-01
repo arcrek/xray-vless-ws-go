@@ -64,7 +64,7 @@ func Launch(cfg *config.Config, binPath, workDir string) (*Handle, error) {
 		// ingress rules (see WriteNamedTunnelConfig's doc comment for why
 		// the token must NOT go in config.yml's `tunnel:` field).
 		cmd = exec.Command(binPath, "tunnel", "--config", configPath, "--metrics", metricsAddr,
-			"--token", cfg.TunnelToken, "run")
+			"run", "--token", cfg.TunnelToken)
 	} else {
 		fmt.Printf("[*] Launching Cloudflare Tunnel pointing to http://%s:%d...\n", cfg.TargetIP, cfg.TargetPort)
 		cmd = exec.Command(binPath, "tunnel", "--protocol", "http2", "--metrics", metricsAddr,
