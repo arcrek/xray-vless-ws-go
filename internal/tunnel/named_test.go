@@ -55,7 +55,11 @@ func TestLaunchNamedTunnelPassesTokenAsFlagNotInConfig(t *testing.T) {
 	args := h.Cmd.Args
 	runIdx := -1
 	tokenIdx := -1
+	hasProtoHTTP2 := false
 	for i, a := range args {
+		if a == "--protocol" && i+1 < len(args) && args[i+1] == "http2" {
+			hasProtoHTTP2 = true
+		}
 		if a == "run" {
 			runIdx = i
 		}
@@ -65,6 +69,9 @@ func TestLaunchNamedTunnelPassesTokenAsFlagNotInConfig(t *testing.T) {
 				t.Errorf("--token flag not followed by the configured token, args = %v", args)
 			}
 		}
+	}
+	if !hasProtoHTTP2 {
+		t.Errorf("expected '--protocol http2' in cloudflared args, got %v", args)
 	}
 	if runIdx == -1 {
 		t.Errorf("expected 'run' subcommand in cloudflared args, got %v", args)
