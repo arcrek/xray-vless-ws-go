@@ -33,9 +33,9 @@ func BuildLinks(cfg *config.Config, uuid, tunnelHost string) []string {
 		encodedRemark := safeQuote(entry.Remark)
 
 		payloads = append(payloads,
-			fmt.Sprintf("vless://%s@%s:443?type=%s&encryption=none&security=tls&path=%s&host=%s&sni=%s#%s%%20TLS",
+			fmt.Sprintf("vless://%s@%s:443?type=%s&encryption=none&security=tls&path=%s&host=%s&sni=%s&ed=2048#%s%%20TLS",
 				uuid, entry.SNI, netType, encodedPath, tunnelHostInfo, tunnelHostInfo, encodedRemark),
-			fmt.Sprintf("vless://%s@%s:80?type=%s&encryption=none&security=&path=%s&host=%s#%s%%20NO%%20TLS",
+			fmt.Sprintf("vless://%s@%s:80?type=%s&encryption=none&security=&path=%s&host=%s&ed=2048#%s%%20NO%%20TLS",
 				uuid, entry.SNI, netType, encodedPath, tunnelHostInfo, encodedRemark),
 		)
 	}

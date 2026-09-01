@@ -3,9 +3,8 @@
 // integration-test Supervisor's restart logic without any real network
 // calls. It understands just enough of the real argv shape to be a
 // convincing double:
-//
-//	fakecloudflared tunnel --protocol http2 --metrics <addr> --url <url>
-//	fakecloudflared tunnel --protocol http2 --config <path> --metrics <addr> run --token <token>
+//	fakecloudflared tunnel --protocol http2 --no-autoupdate --edge-ip-version auto --grace-period 30s --metrics <addr> --url <url>
+//	fakecloudflared tunnel --protocol http2 --no-autoupdate --edge-ip-version auto --grace-period 30s --config <path> --metrics <addr> run --token <token>
 //
 // Behavior is controlled by env vars so the test can script different
 // scenarios:
@@ -37,6 +36,9 @@ func main() {
 	_ = flag.String("url", "", "")
 	_ = flag.String("config", "", "")
 	_ = flag.String("token", "", "")
+	_ = flag.Bool("no-autoupdate", false, "")
+	_ = flag.String("edge-ip-version", "", "")
+	_ = flag.String("grace-period", "", "")
 	flag.CommandLine.Parse(os.Args[2:]) // skip the "tunnel" subcommand token
 
 	if os.Getenv("FAKE_CF_IGNORE_SIGINT") == "1" {

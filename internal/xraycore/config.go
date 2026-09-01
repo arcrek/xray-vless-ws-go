@@ -34,6 +34,7 @@ func BuildConfig(cfg *config.Config) ([]byte, error) {
 			"sniffing": map[string]any{
 				"enabled":      true,
 				"destOverride": []string{"http", "tls"},
+				"routeOnly":    true,
 			},
 			"settings": map[string]any{
 				"clients": []map[string]any{
@@ -49,9 +50,11 @@ func BuildConfig(cfg *config.Config) ([]byte, error) {
 				"network":  "ws",
 				"security": "none",
 				"wsSettings": map[string]any{
-					"path":            cfg.WSPath,
-					"headers":         map[string]string{},
-					"heartbeatPeriod": 15,
+					"path":                cfg.WSPath,
+					"headers":             map[string]string{},
+					"heartbeatPeriod":     10,
+					"maxEarlyData":        2048,
+					"earlyDataHeaderName": "Sec-WebSocket-Protocol",
 				},
 			},
 		})
@@ -60,6 +63,16 @@ func BuildConfig(cfg *config.Config) ([]byte, error) {
 	xrayConfig := map[string]any{
 		"log": map[string]any{
 			"loglevel": "warning",
+		},
+		"dns": map[string]any{
+			"servers": []any{
+				"localhost",
+				"1.1.1.1",
+				"8.8.8.8",
+			},
+			"queryStrategy": "UseIPv4",
+			"disableCache":  false,
+			"tag":           "dns-internal",
 		},
 		"inbounds": inbounds,
 		"outbounds": []map[string]any{
@@ -75,10 +88,10 @@ func BuildConfig(cfg *config.Config) ([]byte, error) {
 				"0": map[string]any{
 					"statsUserUplink":   true,
 					"statsUserDownlink": true,
-					"connIdle":          300,
-					"downlinkOnly":      5,
-					"uplinkOnly":        2,
-					"handshake":         8,
+					"connIdle":          120,
+					"downlinkOnly":      3,
+					"uplinkOnly":        1,
+					"handshake":         4,
 				},
 			},
 		},

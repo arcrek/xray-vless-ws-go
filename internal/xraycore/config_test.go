@@ -31,7 +31,6 @@ func TestBuildConfigShape(t *testing.T) {
 	if err := json.Unmarshal(raw, &decoded); err != nil {
 		t.Fatalf("BuildConfig produced invalid JSON: %v", err)
 	}
-
 	inbounds, ok := decoded["inbounds"].([]any)
 	if !ok || len(inbounds) != 2 {
 		t.Fatalf("expected 2 inbounds, got %#v", decoded["inbounds"])
@@ -43,6 +42,14 @@ func TestBuildConfigShape(t *testing.T) {
 	}
 	if first["port"] != float64(8888) {
 		t.Errorf("inbound[0].port = %v, want 8888", first["port"])
+	}
+
+	sniffing := first["sniffing"].(map[string]any)
+	if sniffing["enabled"] != true {
+		t.Errorf("sniffing.enabled = %v, want true", sniffing["enabled"])
+	}
+	if sniffing["routeOnly"] != true {
+		t.Errorf("sniffing.routeOnly = %v, want true", sniffing["routeOnly"])
 	}
 
 	settings := first["settings"].(map[string]any)
@@ -72,8 +79,14 @@ func TestBuildConfigShape(t *testing.T) {
 	if ws["path"] != "/tiktok4g" {
 		t.Errorf("wsSettings.path = %v, want /tiktok4g", ws["path"])
 	}
-	if hb, ok := ws["heartbeatPeriod"]; !ok || hb != float64(15) {
-		t.Errorf("wsSettings.heartbeatPeriod = %v, want 15", hb)
+	if hb, ok := ws["heartbeatPeriod"]; !ok || hb != float64(10) {
+		t.Errorf("wsSettings.heartbeatPeriod = %v, want 10", hb)
+	}
+	if ed, ok := ws["maxEarlyData"]; !ok || ed != float64(2048) {
+		t.Errorf("wsSettings.maxEarlyData = %v, want 2048", ed)
+	}
+	if edn, ok := ws["earlyDataHeaderName"]; !ok || edn != "Sec-WebSocket-Protocol" {
+		t.Errorf("wsSettings.earlyDataHeaderName = %v, want Sec-WebSocket-Protocol", edn)
 	}
 
 	outbounds, ok := decoded["outbounds"].([]any)
@@ -106,14 +119,17 @@ func TestBuildConfigShape(t *testing.T) {
 	if level0["statsUserDownlink"] != true {
 		t.Errorf("policy.levels[0].statsUserDownlink = %v, want true", level0["statsUserDownlink"])
 	}
-	if level0["connIdle"] != float64(300) {
-		t.Errorf("policy.levels[0].connIdle = %v, want 300", level0["connIdle"])
+	if level0["connIdle"] != float64(120) {
+		t.Errorf("policy.levels[0].connIdle = %v, want 120", level0["connIdle"])
 	}
-	if level0["downlinkOnly"] != float64(5) {
-		t.Errorf("policy.levels[0].downlinkOnly = %v, want 5", level0["downlinkOnly"])
+	if level0["downlinkOnly"] != float64(3) {
+		t.Errorf("policy.levels[0].downlinkOnly = %v, want 3", level0["downlinkOnly"])
 	}
-	if level0["uplinkOnly"] != float64(2) {
-		t.Errorf("policy.levels[0].uplinkOnly = %v, want 2", level0["uplinkOnly"])
+	if level0["uplinkOnly"] != float64(1) {
+		t.Errorf("policy.levels[0].uplinkOnly = %v, want 1", level0["uplinkOnly"])
+	}
+	if level0["handshake"] != float64(4) {
+		t.Errorf("policy.levels[0].handshake = %v, want 4", level0["handshake"])
 	}
 
 	stats, ok := decoded["stats"].(map[string]any)
@@ -122,6 +138,25 @@ func TestBuildConfigShape(t *testing.T) {
 	}
 	if len(stats) != 0 {
 		t.Errorf("stats block = %#v, want empty object", stats)
+	}
+
+	// DNS config assertions (connection optimization).
+	dns, ok := decoded["dns"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected top-level dns block, got %#v", decoded["dns"])
+	}
+	servers, ok := dns["servers"].([]any)
+	if !ok || len(servers) != 3 {
+		t.Fatalf("expected 3 dns servers, got %#v", dns["servers"])
+	}
+	if servers[0] != "localhost" {
+		t.Errorf("dns.servers[0] = %v, want localhost", servers[0])
+	}
+	if servers[1] != "1.1.1.1" {
+		t.Errorf("dns.servers[1] = %v, want 1.1.1.1", servers[1])
+	}
+	if dns["queryStrategy"] != "UseIPv4" {
+		t.Errorf("dns.queryStrategy = %v, want UseIPv4", dns["queryStrategy"])
 	}
 }
 
