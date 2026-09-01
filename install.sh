@@ -7,7 +7,7 @@
 #      latest GitHub Release and verifies the checksum.
 #   3. Runs the binary in the foreground.
 #
-# The repo is public, so downloading is a plain, unauthenticated `curl`
+# The repo is public, so downloading is a plain, unauthenticated `wget`
 # against the public release-asset URLs — no token or `gh` login needed.
 #
 # Usage:
@@ -17,7 +17,7 @@
 
 set -euo pipefail
 
-# When run as `curl ... | bash`, stdin is the piped script, not the
+# When run as `wget -qO- ... | bash`, stdin is the piped script, not the
 # terminal — `read` below would hit EOF instantly. Rebind stdin to the
 # controlling tty so the interactive prompts still work.
 if [ ! -t 0 ] && [ -r /dev/tty ]; then
@@ -142,7 +142,7 @@ else
 fi
 
 for name in "$asset" "SHA256SUMS"; do
-  curl -fL -o "$INSTALL_DIR/$name" "$base_url/$name"
+  wget -qO "$INSTALL_DIR/$name" "$base_url/$name"
 done
 
 mv "$INSTALL_DIR/$asset" "$bin_path"
