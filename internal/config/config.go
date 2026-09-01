@@ -86,7 +86,7 @@ func Reload() (*Config, error) {
 func fromEnv() (*Config, error) {
 	cfg := &Config{
 		RawPort:     getenv("PORT", defaultPort),
-		XrayUUID:    getenv("XRAY_UUID", newUUIDv4()),
+		XrayUUID:    getenvOrGenerate("XRAY_UUID", newUUIDv4),
 		RawFakeSNI:  getenv("FAKE_SNI", defaultFakeSNI),
 		WSPath:      getenv("WS_PATH", defaultWSPath),
 		WSHost:      getenv("WS_HOST", defaultWSHost),
@@ -105,12 +105,12 @@ func fromEnv() (*Config, error) {
 		// .env, it re-randomizes on every restart (harmless for the
 		// process's own listener, but invalidates any previously
 		// bookmarked dashboard credentials).
-		LogPassword: getenv("LOG_PASSWORD", newSecretToken(24)),
+		LogPassword: getenvOrGenerate("LOG_PASSWORD", func() string { return newSecretToken(24) }),
 
 		CloudflareAPIToken:  strings.TrimSpace(getenv("CLOUDFLARE_API_TOKEN", defaultCloudflareAPIToken)),
 		CloudflareAccountID: strings.TrimSpace(getenv("CLOUDFLARE_ACCOUNT_ID", defaultCloudflareAccountID)),
 		Domain:              strings.TrimSpace(getenv("DOMAIN", defaultDomain)),
-		WorkerPassword:      getenv("WORKER_PASSWORD", newSecretToken(24)),
+		WorkerPassword:      getenvOrGenerate("WORKER_PASSWORD", func() string { return newSecretToken(24) }),
 	}
 
 	// TRANSPORT: only "websocket" is supported in v1. xhttp is
@@ -154,6 +154,20 @@ func getenv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// getenvOrGenerate is like getenv but also falls back when key is present
+// with an empty value — the installer writes e.g. "XRAY_UUID=" verbatim
+// when the user accepts a "blank = auto-generate" prompt, which os.LookupEnv
+// reports as present (ok=true, value ""), not absent. Only used for the
+// handful of fields whose documented default IS a freshly generated value
+// (XRAY_UUID, LOG_PASSWORD, WORKER_PASSWORD) — other fields treat an
+// explicit blank as a real, meaningful value (e.g. WEBHOOK_URL="" disabled).
+func getenvOrGenerate(key string, generate func() string) string {
+	if v, ok := os.LookupEnv(key); ok && v != "" {
+		return v
+	}
+	return generate()
 }
 
 func writeDefaultEnvFile(path string) error {
