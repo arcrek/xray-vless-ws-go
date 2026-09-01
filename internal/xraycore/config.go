@@ -49,8 +49,9 @@ func BuildConfig(cfg *config.Config) ([]byte, error) {
 				"network":  "ws",
 				"security": "none",
 				"wsSettings": map[string]any{
-					"path":    cfg.WSPath,
-					"headers": map[string]string{},
+					"path":            cfg.WSPath,
+					"headers":         map[string]string{},
+					"heartbeatPeriod": 15,
 				},
 			},
 		})
@@ -58,7 +59,7 @@ func BuildConfig(cfg *config.Config) ([]byte, error) {
 
 	xrayConfig := map[string]any{
 		"log": map[string]any{
-			"loglevel": "debug",
+			"loglevel": "warning",
 		},
 		"inbounds": inbounds,
 		"outbounds": []map[string]any{
@@ -74,6 +75,10 @@ func BuildConfig(cfg *config.Config) ([]byte, error) {
 				"0": map[string]any{
 					"statsUserUplink":   true,
 					"statsUserDownlink": true,
+					"connIdle":          300,
+					"downlinkOnly":      5,
+					"uplinkOnly":        2,
+					"handshake":         8,
 				},
 			},
 		},

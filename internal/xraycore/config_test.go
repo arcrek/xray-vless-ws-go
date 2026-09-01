@@ -72,6 +72,9 @@ func TestBuildConfigShape(t *testing.T) {
 	if ws["path"] != "/tiktok4g" {
 		t.Errorf("wsSettings.path = %v, want /tiktok4g", ws["path"])
 	}
+	if hb, ok := ws["heartbeatPeriod"]; !ok || hb != float64(15) {
+		t.Errorf("wsSettings.heartbeatPeriod = %v, want 15", hb)
+	}
 
 	outbounds, ok := decoded["outbounds"].([]any)
 	if !ok || len(outbounds) != 1 {
@@ -102,6 +105,15 @@ func TestBuildConfigShape(t *testing.T) {
 	}
 	if level0["statsUserDownlink"] != true {
 		t.Errorf("policy.levels[0].statsUserDownlink = %v, want true", level0["statsUserDownlink"])
+	}
+	if level0["connIdle"] != float64(300) {
+		t.Errorf("policy.levels[0].connIdle = %v, want 300", level0["connIdle"])
+	}
+	if level0["downlinkOnly"] != float64(5) {
+		t.Errorf("policy.levels[0].downlinkOnly = %v, want 5", level0["downlinkOnly"])
+	}
+	if level0["uplinkOnly"] != float64(2) {
+		t.Errorf("policy.levels[0].uplinkOnly = %v, want 2", level0["uplinkOnly"])
 	}
 
 	stats, ok := decoded["stats"].(map[string]any)
