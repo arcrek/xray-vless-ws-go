@@ -66,7 +66,7 @@ realistic Android/Termux use case.
 One-liner — downloads `install.sh` and runs it straight away:
 
 ```
-wget -qO- https://raw.githubusercontent.com/arcrek/xray-vless-ws-go/main/install.sh | bash
+f=$(mktemp) && wget -qO "$f" https://raw.githubusercontent.com/arcrek/xray-vless-ws-go/main/install.sh && bash "$f"; rm -f "$f"
 ```
 
 Or clone first and run it locally:

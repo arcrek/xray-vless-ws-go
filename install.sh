@@ -14,12 +14,19 @@
 #   ./install.sh                # interactive, installs into ./xrayws-run
 #   INSTALL_DIR=/opt/xrayws ./install.sh
 #   RELEASE_TAG=v1.0.0 ./install.sh   # pin a specific release instead of latest
+#
+# Quickstart one-liner downloads to a temp file and runs that, on purpose —
+# `wget -qO- ... | bash` would stream this script's own bytes in on fd 0,
+# and the `exec </dev/tty` below would then repoint bash's *script-reading*
+# fd away from that pipe mid-parse, truncating the run right after this
+# block with no output and no error. See README's Quickstart section.
 
 set -euo pipefail
 
-# When run as `wget -qO- ... | bash`, stdin is the piped script, not the
-# terminal — `read` below would hit EOF instantly. Rebind stdin to the
-# controlling tty so the interactive prompts still work.
+# Belt-and-braces stdin fallback: if something upstream still redirects our
+# stdin away from a terminal (e.g. invoked from another script, or run
+# under a supervisor with stdin closed), rebind to the controlling tty so
+# the interactive prompts still work instead of hitting instant EOF.
 if [ ! -t 0 ] && [ -r /dev/tty ]; then
   # `-r /dev/tty` only checks permission bits; the node can still fail to
   # open (ENXIO) when the process has no controlling terminal at all (CI,
