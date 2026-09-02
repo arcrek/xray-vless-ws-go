@@ -8,31 +8,31 @@
 </head>
 <body>
     <!-- Toast Notifications Container -->
-    <div id="toast-container"></div>
+    <div id="toast-container" aria-live="polite" aria-atomic="true"></div>
 
     <!-- Login View (Shown when unauthenticated) -->
     <div id="login-view" class="login-wrapper hidden">
         <div class="login-card">
             <div class="login-header">
                 <div class="logo-icon">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                 </div>
                 <h1 class="login-title">Xray VLESS Dashboard</h1>
-                <p class="login-subtitle">Nhap mat khau quan tri de truy cap bang dieu khien</p>
+                <p class="login-subtitle">Nhập mật khẩu quản trị để truy cập bảng điều khiển</p>
             </div>
             <form id="login-form" class="login-form">
-                <div id="login-error" class="alert-danger hidden">Mat khau khong chinh xac</div>
+                <div id="login-error" class="alert-danger hidden">Mật khẩu không chính xác</div>
                 <div class="form-group">
-                    <label class="form-label" for="password-input">Mat khau</label>
+                    <label class="form-label" for="password-input">Mật khẩu Quản trị</label>
                     <div class="input-with-icon">
-                        <input type="password" id="password-input" placeholder="Nhap LOG_PASSWORD..." autocomplete="current-password" required autofocus>
-                        <button type="button" id="toggle-password" class="input-icon-btn" title="Hien/an mat khau">
+                        <input type="password" id="password-input" placeholder="Nhập LOG_PASSWORD..." autocomplete="current-password" required autofocus>
+                        <button type="button" id="toggle-password" class="input-icon-btn" title="Hiện/ẩn mật khẩu" aria-label="Hiện/ẩn mật khẩu">
                             <svg class="icon-eye" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                         </button>
                     </div>
                 </div>
                 <button type="submit" id="login-submit-btn" class="btn btn-primary btn-login">
-                    Dang nhap
+                    Đăng nhập Hệ thống
                 </button>
             </form>
         </div>
@@ -45,18 +45,21 @@
             <div class="header-content">
                 <div class="logo-group">
                     <div class="logo-icon">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                     </div>
-                    <div class="logo-title">Xray VLESS</div>
+                    <div class="logo-text">
+                        <span class="logo-title">Xray VLESS</span>
+                        <span class="logo-badge">Tunnel Manager</span>
+                    </div>
                 </div>
                 <div class="header-actions">
-                    <button id="btn-refresh" class="btn btn-sm" title="Lam moi du lieu">
+                    <button id="btn-refresh" class="btn btn-sm btn-secondary" title="Làm mới dữ liệu">
                         <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
-                        Lam moi
+                        Làm mới
                     </button>
-                    <button id="btn-logout" class="btn btn-sm btn-danger hidden" title="Dang xuat khoi phien lam viec">
+                    <button id="btn-logout" class="btn btn-sm btn-danger hidden" title="Đăng xuất khỏi phiên làm việc">
                         <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-                        Dang xuat
+                        Đăng xuất
                     </button>
                 </div>
             </div>
@@ -68,12 +71,13 @@
                 <div class="card-header">
                     <div class="card-title">
                         <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-                        Trang thai He thong
+                        Trạng thái Hệ thống
                     </div>
-                    <div id="overall-status-badge" class="tag tag-tls">Dang kiem tra...</div>
+                    <div id="overall-status-badge" class="tag tag-tls">Đang kiểm tra...</div>
                 </div>
                 <div class="card-body">
                     <div class="status-cards-grid">
+                        <!-- Card 1: Core Engine -->
                         <div class="status-box">
                             <div class="status-box-header">
                                 <span>Core Engine</span>
@@ -83,29 +87,32 @@
                             <div class="status-box-sub">Xray VLESS Core Service</div>
                         </div>
 
+                        <!-- Card 2: Cloudflare Tunnel -->
                         <div class="status-box">
                             <div class="status-box-header">
                                 <span>Cloudflare Tunnel</span>
                                 <span class="dot dot-pulse" id="dot-tunnel"></span>
                             </div>
                             <div class="status-box-value" id="tunnel-state">&mdash;</div>
-                            <div class="status-box-sub">Ket noi san sang: <b id="ready-connections" class="text-primary">0</b></div>
+                            <div class="status-box-sub">Kết nối sẵn sàng: <b id="ready-connections" class="text-accent">0</b></div>
                         </div>
 
+                        <!-- Card 3: Tunnel Hostname -->
                         <div class="status-box">
                             <div class="status-box-header">
                                 <span>Tunnel Hostname</span>
-                                <button class="btn btn-sm btn-icon" id="copy-hostname-btn" title="Sao chep Hostname">
+                                <button class="btn btn-icon" id="copy-hostname-btn" title="Sao chép Hostname" aria-label="Sao chép Hostname">
                                     <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
                                 </button>
                             </div>
                             <div class="status-box-value hostname-value" id="hostname">&mdash;</div>
-                            <div class="status-box-sub" id="public-ip">IP: Dang xac dinh...</div>
+                            <div class="status-box-sub" id="public-ip">IP: Đang xác định...</div>
                         </div>
 
+                        <!-- Card 4: Uptime -->
                         <div class="status-box">
                             <div class="status-box-header">
-                                <span>Thoi gian hoat dong</span>
+                                <span>Thời gian hoạt động</span>
                                 <svg class="icon icon-muted" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                             </div>
                             <div class="status-box-value uptime-value" id="uptime">&mdash;</div>
@@ -119,17 +126,17 @@
             <section class="card">
                 <div class="card-header">
                     <div class="card-title">
-                        <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 8.5L9 12l-3.5 3.5L2 12l3.5-3.5z"/><path d="M12 2l3.5 3.5L12 9 8.5 5.5 12 2z"/><path d="M18.5 8.5L22 12l-3.5 3.5L15 12l3.5-3.5z"/><path d="M12 15l3.5 3.5L12 22l-3.5-3.5L12 15z"/></svg>
-                        Cau hinh VLESS &amp; Ma QR
+                        <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+                        Cấu hình VLESS &amp; Mã QR
                     </div>
                     <div class="card-header-actions">
-                        <button id="btn-copy-raw-config" class="btn btn-sm" title="Sao chep toan bo noi dung frp_info.config">
+                        <button id="btn-copy-raw-config" class="btn btn-sm btn-secondary" title="Sao chép toàn bộ nội dung file frp_info.config">
                             <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-                            Sao chep Config
+                            Sao chép Config
                         </button>
-                        <button id="btn-download-config" class="btn btn-sm" title="Tai xuong file frp_info.config">
+                        <button id="btn-download-config" class="btn btn-sm btn-secondary" title="Tải xuống file frp_info.config">
                             <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                            Tai Config
+                            Tải Config
                         </button>
                     </div>
                 </div>
@@ -138,20 +145,23 @@
                         <!-- Left: Node links list -->
                         <div class="vless-nodes-list" id="vless-nodes-container">
                             <div class="vless-placeholder">
-                                Dang tai danh sach ket noi VLESS...
+                                Đang tải danh sách kết nối VLESS...
                             </div>
                         </div>
 
                         <!-- Right: Base64 Subscription QR code -->
                         <div class="sub-card">
-                            <div class="sub-card-title">QR Code Subscription</div>
-                            <div class="qr-preview-wrapper" id="qr-preview-box" title="Bam de phong to">
+                            <div class="sub-card-header">
+                                <svg class="icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="8" height="8" rx="1"/><rect x="14" y="2" width="8" height="8" rx="1"/><rect x="2" y="14" width="8" height="8" rx="1"/><rect x="14" y="14" width="4" height="4" rx="1"/><line x1="22" y1="18" x2="22" y2="22"/><line x1="18" y1="22" x2="22" y2="22"/></svg>
+                                <span class="sub-card-title">Mã QR Đăng ký (Subscription)</span>
+                            </div>
+                            <div class="qr-preview-wrapper" id="qr-preview-box" title="Bấm để phóng to mã QR">
                                 <canvas id="sub-qr-canvas" class="qr-preview-canvas"></canvas>
                             </div>
-                            <p class="sub-info-text">Quet ma QR bang ung dung V2RayN, v2rayNG, Shadowrocket, Sing-box de them cau hinh.</p>
+                            <p class="sub-info-text">Quét mã QR hoặc sao chép chuỗi Base64 để nhập tự động vào V2RayN, v2rayNG, Shadowrocket, Sing-box.</p>
                             <button id="btn-copy-sub-b64" class="btn btn-primary btn-sm btn-full">
                                 <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-                                Sao chep chuoi Base64
+                                Sao chép chuỗi Base64
                             </button>
                         </div>
                     </div>
@@ -163,15 +173,15 @@
                 <div class="card-header">
                     <div class="card-title">
                         <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-                        Luu luong Mang
+                        Lưu lượng Mạng
                     </div>
                     <div class="throughput-stats">
                         <div class="tp-stat">
-                            <span class="tp-label">Tai len</span>
+                            <span class="tp-label">Tải lên</span>
                             <span class="tp-value tp-up" id="up-bps">0 B/s</span>
                         </div>
                         <div class="tp-stat">
-                            <span class="tp-label">Tai xuong</span>
+                            <span class="tp-label">Tải xuống</span>
                             <span class="tp-value tp-down" id="down-bps">0 B/s</span>
                         </div>
                     </div>
@@ -181,8 +191,8 @@
                         <canvas id="sparkline"></canvas>
                     </div>
                     <div class="throughput-totals">
-                        <div>Tong tai len: <span id="up-total" class="mono-value">0 B</span></div>
-                        <div>Tong tai xuong: <span id="down-total" class="mono-value">0 B</span></div>
+                        <div>Tổng tải lên: <span id="up-total" class="mono-value">0 B</span></div>
+                        <div>Tổng tải xuống: <span id="down-total" class="mono-value">0 B</span></div>
                     </div>
                 </div>
             </section>
@@ -192,45 +202,45 @@
                 <div class="card-header">
                     <div class="card-title">
                         <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-                        Nhat ky Realtime
+                        Nhật ký Hoạt động Realtime
                         <span id="log-online-pill" class="tag tag-tls">Live</span>
                     </div>
                     <div class="log-controls">
                         <div class="log-controls-search">
                             <svg class="icon search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                            <input type="text" id="log-search" class="search-input" placeholder="Tim kiem log...">
+                            <input type="text" id="log-search" class="search-input" placeholder="Tìm kiếm log..." aria-label="Tìm kiếm log">
                         </div>
-                        <select id="log-filter-source" class="select-input">
-                            <option value="ALL">Tat ca Nguon</option>
+                        <select id="log-filter-source" class="select-input" aria-label="Lọc theo Nguồn">
+                            <option value="ALL">Tất cả Nguồn</option>
                             <option value="XRAY">XRAY</option>
                             <option value="CLOUDFLARE">CLOUDFLARE</option>
                             <option value="CI">CI Bridge</option>
                         </select>
-                        <select id="log-filter-type" class="select-input">
-                            <option value="ALL">Tat ca Muc</option>
+                        <select id="log-filter-type" class="select-input" aria-label="Lọc theo Cấp độ">
+                            <option value="ALL">Tất cả Mức</option>
                             <option value="INFO">INFO</option>
                             <option value="SUCCESS">SUCCESS</option>
                             <option value="ERROR">ERROR</option>
                         </select>
                         <div class="log-controls-actions">
-                            <button id="btn-toggle-scroll" class="btn btn-sm" title="Bat/Tat tu dong cuon xuong cuoi">
+                            <button id="btn-toggle-scroll" class="btn btn-sm btn-secondary" title="Bật/Tắt tự động cuộn xuống cuối">
                                 <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
                                 Auto-scroll
                             </button>
-                            <button id="btn-clear-logs" class="btn btn-sm" title="Xoa man hinh log">
+                            <button id="btn-clear-logs" class="btn btn-sm btn-secondary" title="Xóa màn hình log">
                                 <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
-                                Xoa
+                                Xóa
                             </button>
-                            <button id="btn-copy-logs" class="btn btn-sm" title="Sao chep toan bo log">
+                            <button id="btn-copy-logs" class="btn btn-sm btn-secondary" title="Sao chép toàn bộ log">
                                 <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-                                Sao chep
+                                Sao chép
                             </button>
                         </div>
                     </div>
                 </div>
                 <div class="card-body card-body-logs">
                     <div id="log-container">
-                        <div class="log-placeholder">Dang ket noi luong log...</div>
+                        <div class="log-placeholder">Đang kết nối luồng log realtime...</div>
                     </div>
                 </div>
             </section>
@@ -238,24 +248,26 @@
     </div>
 
     <!-- QR Code Large Modal -->
-    <div id="qr-modal" class="modal-backdrop hidden">
+    <div id="qr-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="modal-qr-title">
         <div class="modal-box">
             <div class="modal-header">
-                <div class="modal-title" id="modal-qr-title">Ma QR Cau hinh</div>
-                <button class="modal-close" id="btn-close-modal" aria-label="Dong">
+                <div class="modal-title" id="modal-qr-title">Mã QR Cấu hình</div>
+                <button class="modal-close" id="btn-close-modal" aria-label="Đóng">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 </button>
             </div>
             <div class="modal-body">
-                <canvas id="modal-qr-canvas" class="modal-qr-canvas"></canvas>
+                <div class="modal-qr-canvas-wrapper">
+                    <canvas id="modal-qr-canvas" class="modal-qr-canvas"></canvas>
+                </div>
                 <div id="modal-qr-desc" class="modal-qr-desc"></div>
             </div>
             <div class="modal-footer">
                 <button id="btn-modal-copy" class="btn btn-primary btn-sm">
                     <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-                    Sao chep Noi dung
+                    Sao chép Nội dung
                 </button>
-                <button id="btn-modal-close-footer" class="btn btn-sm">Dong</button>
+                <button id="btn-modal-close-footer" class="btn btn-secondary btn-sm">Đóng</button>
             </div>
         </div>
     </div>
