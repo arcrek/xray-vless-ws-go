@@ -16,6 +16,7 @@ planning notes that produced it (never shipped in this repo).
 | `internal/logserver` | Embedded HTTP dashboard: realtime log viewer + `/stats` (xray/tunnel status, traffic throughput) — `go:embed` assets from `web/logserver` |
 | `internal/ci` | GitHub Actions CI bridge (export secret, watch+upload, re-dispatch) |
 | `internal/cfdeploy` | Cloudflare Worker bridge + named Tunnel auto-provision via the Cloudflare REST API |
+| `internal/selfupdate` | GitHub Releases lookup, download+verify, atomic binary swap + single-level rollback, systemd restart for `--update`/`--rollback` |
 
 ```
 cmd/
@@ -28,7 +29,8 @@ internal/
 ├── linkgen/
 ├── logserver/
 ├── ci/
-└── cfdeploy/
+├── cfdeploy/
+└── selfupdate/
 web/
 └── logserver/            # static HTML/CSS/JS for the log viewer (go:embed source)
 ```
@@ -194,6 +196,62 @@ implemented 2026-08-29).
   until the new one is parsed. Self-corrects within one poll/parse cycle;
   not fixed — synchronizing the two would add real complexity for a
   sub-second, self-healing local-dashboard display glitch.
+
+## Decision log — OTA self-update (`internal/selfupdate`)
+
+Full plan: `plans/260903-1540-ota-self-update/` (all open questions resolved
+with the user before implementation).
+
+| # | Decision | Chosen | Rejected alternatives |
+|---|----------|--------|------------------------|
+| 1 | Trigger | Manual CLI flag only (`--update`/`--rollback`) | Background auto-check/scheduled polling, dashboard button, `/update` HTTP API endpoint |
+| 2 | Version source | `var Version = "dev"` in `cmd/xrayws/main.go`, stamped via `-ldflags -X main.Version=...`; `Makefile` derives it from `git describe --tags --always --dirty` (fallback `dev`); CI overrides with the actual release tag (`make build-all VERSION=${{ steps.tag.outputs.tag }}`) so released binaries report their real tag, not a `git describe` guess | A separate version file/package; no version string at all (couldn't compare or report) |
+| 3 | GitHub lookup method | Unauthenticated REST call, `GET /repos/<repo>/releases/latest` — needs to *know* the resolved tag (to report "vX → vY" and support a same-version no-op) | `install.sh`'s static `.../releases/latest/download/<asset>` redirect (never reveals which version it fetched) |
+| 4 | Atomic swap | Temp file written into the executable's own directory (same filesystem, guaranteed by `filepath.Dir(execPath)`) + `os.Rename` — atomic on Linux/macOS even over a currently-executing binary | Writing to `os.TempDir()` (may be a different filesystem, breaking rename atomicity); in-place overwrite of the running binary (risks a half-written binary bricking the service) |
+| 5 | Rollback mechanism | `os.Link(execPath, execPath+".prev")` — a hardlink (free, instant, zero extra disk cost) taken immediately before the swap; single-level only, each `--update` replaces the prior `.prev` | Full file copy (wasted I/O for something usually never used); multi-level history (`.prev.1`, `.prev.2`, ...) |
+| 6 | Restart mechanism | Shell out to fixed unit name `systemctl restart xrayws` (matching `install.sh`'s `SERVICE_NAME`), `sudo`-prefixed when not root; gated by `systemctl show -p LoadState --value xrayws.service` == `loaded` — checks the unit is *installed*, regardless of enabled/active state, so a restart is still attempted for a disabled-but-installed service | `systemctl is-enabled xrayws` (rejected: also reports "not present" for a unit that's installed and running but explicitly disabled, wrongly skipping a working restart); self-exec/re-exec fallback for non-systemd hosts (out of scope — restart is systemd-only by design) |
+| 7 | Privilege-failure handling | Preflight write-access check on the executable's directory *before* downloading anything; a swap-succeeds/restart-fails outcome still exits non-zero with an explicit "updated to vX.Y.Z, but restart failed — restart manually" message (partial success, not silent success) | Discovering the permission failure only when the final `os.Rename` fails (wastes a full download first) |
+| 8 | Non-Linux/no-systemd behavior | Windows: refuse cleanly upfront (`os.Rename` can't replace a currently-executing `.exe` there) — "download the new build manually". macOS/Linux without a detected `xrayws.service` unit: swap still succeeds, print a manual-restart message, return a clean (non-error) result | A two-step manual-swap dance for Windows (`.exe.new` + instructions) — deferred until an actual Windows user asks |
+| 9 | Trust model | SHA256SUMS only, matching `install.sh`'s existing model exactly — integrity-against-corruption, not authenticity-against-compromise; documented explicitly rather than implying more security than it provides | GPG/signature verification (no existing infra for it; would diverge from `install.sh`'s trust model) |
+| 10 | Downgrade/version pinning | Not supported — `--update` always moves to whatever `latest` resolves to | A `--update=vX.Y.Z` pinning flag (YAGNI until requested) |
+
+### selfupdate architecture
+
+New package `internal/selfupdate`, one file per concern (mirroring
+`internal/cfdeploy`'s layout):
+
+- `github.go` — `latestRelease(ctx)`: unauthenticated `GET
+  /repos/<repo>/releases/latest`, returns the tag + a name→asset map.
+  `githubAPIBase` is a package var (same idiom as `internal/ci/bridge.go`)
+  so tests point it at an `httptest.Server`.
+- `verify.go` — `downloadAndVerify`: downloads the platform asset to a
+  temp path, downloads `SHA256SUMS` into memory, matches the line for the
+  asset's exact filename, hard-fails on any mismatch. Mirrors
+  `install.sh`'s download+verify step exactly, in Go.
+- `swap.go` — `atomicReplace`: takes the `.prev` hardlink, `chmod +x`s the
+  new binary, then `os.Rename`s it into place. Every failure path returns
+  before the rename, so a failed update always leaves the original binary
+  running untouched.
+- `restart.go` — `restartService`: `systemctl restart xrayws`
+  (`sudo`-prefixed if not root), gated by an `isUnitPresent` check;
+  `execCommand`/`isUnitPresent` are package-var func fields (same
+  injectable-function idiom as `tunnel.Supervisor`'s `LogLine`/`OnHostname`)
+  so tests never shell out for real. `errNoSystemdUnit` is the sentinel
+  that lets `Run`/`Rollback` treat "no unit" as a clean, non-fatal
+  condition rather than an error.
+- `run.go` — `Run(ctx, currentVersion, out) error`: end-to-end
+  orchestration (resolve latest → same-version short-circuit →
+  write-permission preflight → download+verify → atomic swap → restart),
+  narrating progress to `out` in `install.sh`'s style.
+- `rollback.go` — `Rollback(ctx, out) error`: symmetric, simpler flow — no
+  download/verify needed since `.prev` was already the verified,
+  previously-running binary; fails cleanly with a specific error when no
+  `.prev` exists.
+
+`cmd/xrayws/main.go` branches into `--update`/`--rollback` (and
+`--version`) *before* `config.Load()` and all proxy bootstrap, so the
+update path works even against a broken/missing `.env` and never
+initializes xray-core.
 
 ## Known limitations
 

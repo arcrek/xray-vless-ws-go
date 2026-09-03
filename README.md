@@ -92,6 +92,9 @@ smoke test fails, falls back to running in the foreground. See
 ./bin/xrayws                    # foreground, quick tunnel or named tunnel per .env
 ./bin/xrayws --log-port=0       # disable the embedded log viewer
 ./bin/xrayws --ci-mode          # GitHub Actions CI bridge mode — see note below
+./bin/xrayws --version          # print the running binary's version and exit (-v shorthand)
+./bin/xrayws --update           # self-update to the latest GitHub Release — see below
+./bin/xrayws --rollback         # swap back to the binary from before the last --update
 ```
 
 On first run, a default `.env` is generated (see `.env.example` for the
@@ -126,6 +129,45 @@ VPN/loopback-only setup rather than exposing it on a public interface.
 no longer invokes it — the Action now only builds and publishes release
 binaries (see below). Run `--ci-mode` manually if you still want that
 free-runner-as-host deployment.
+
+### Self-update (`--update` / `--rollback`, `internal/selfupdate`)
+
+`--update` checks the latest GitHub Release, downloads the matching
+platform asset, verifies its SHA256 against the release's `SHA256SUMS`,
+atomically swaps it in for the running binary, and restarts the `xrayws`
+systemd service (the fixed unit name `install.sh` creates). It's a manual,
+CLI-triggered flag only — there's no background auto-check and no
+dashboard/API equivalent.
+
+```
+sudo ./xrayws --update      # typical case: binary installed under a root-owned systemd deployment
+sudo ./xrayws --rollback    # swap back to the binary from before the last --update
+```
+
+- **Permissions:** if the binary's directory isn't writable by the current
+  user (the common case for an `install.sh` deployment, which runs as
+  root), `--update`/`--rollback` fail fast with an actionable error before
+  downloading anything — re-run with `sudo`.
+- **Restart:** requires systemd. Detection checks whether the `xrayws.service`
+  unit is *installed* (`systemctl show -p LoadState --value`), regardless of
+  whether it's enabled or currently active, so a disabled-but-installed
+  service still gets restarted. On a non-systemd setup (e.g. a manual
+  foreground run, or `install.sh`'s no-systemd fallback), the binary swap
+  still succeeds but you'll need to restart the process manually — the
+  command prints a clear message instead of erroring.
+- **Rollback is single-level only:** `--update` preserves the
+  immediately-preceding binary as `<binary>.prev` (a hardlink, not a
+  separate copy); `--rollback` swaps it back and consumes it. There's no
+  multi-version history — running `--rollback` twice in a row fails
+  cleanly on the second attempt.
+- **Trust model:** integrity only, via the same SHA256SUMS check
+  `install.sh` already uses — there's no GPG/signature verification, so
+  this protects against transport corruption, not a compromised release.
+- **Windows:** self-update while running isn't supported (Windows can't
+  replace a currently-executing `.exe`) — `--update`/`--rollback` refuse
+  cleanly with a message to download the new build manually.
+- This is a separate, purely-in-binary path for *subsequent* updates —
+  `install.sh` remains the *initial*-install mechanism and is unaffected.
 
 ## Cloudflare Worker auto-deploy (`internal/cfdeploy`)
 

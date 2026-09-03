@@ -22,17 +22,48 @@ import (
 	"github.com/arcrek/xray-vless-ws-go/internal/config"
 	"github.com/arcrek/xray-vless-ws-go/internal/linkgen"
 	"github.com/arcrek/xray-vless-ws-go/internal/logserver"
+	"github.com/arcrek/xray-vless-ws-go/internal/selfupdate"
 	"github.com/arcrek/xray-vless-ws-go/internal/tunnel"
 	"github.com/arcrek/xray-vless-ws-go/internal/xraycore"
 )
 
+// Version is stamped at build time via -ldflags -X main.Version=<git describe>
+// (see Makefile). "dev" is the fallback for a plain `go build`/`go run`
+// with no -ldflags, e.g. local development outside the Makefile.
+var Version = "dev"
+
 func main() {
 	ciMode := flag.Bool("ci-mode", false, "Run the GitHub Actions CI bridge alongside the proxy (export ENV_CONFIG, watch+upload frp_info.*, self re-dispatch, self-exit before the 6h job limit)")
 	logPort := flag.Int("log-port", 9999, "Port for the embedded log viewer (0 disables it)")
+	doUpdate := flag.Bool("update", false, "Check GitHub Releases for a newer version, download+verify+install it, and restart the systemd service")
+	doRollback := flag.Bool("rollback", false, "Swap back to the binary from before the last --update and restart the systemd service")
+	showVersion := flag.Bool("version", false, "Print the running binary's version and exit")
+	flag.BoolVar(showVersion, "v", false, "Shorthand for --version")
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Println(Version)
+		return
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+
+	if *doUpdate {
+		if err := selfupdate.Run(ctx, Version, os.Stdout); err != nil {
+			fmt.Fprintf(os.Stderr, "[!] update failed: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	if *doRollback {
+		if err := selfupdate.Rollback(ctx, os.Stdout); err != nil {
+			fmt.Fprintf(os.Stderr, "[!] rollback failed: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
 
 	if err := run(ctx, *ciMode, *logPort); err != nil {
 		fmt.Fprintf(os.Stderr, "[!] fatal: %v\n", err)
