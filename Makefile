@@ -1,6 +1,13 @@
 MODULE  := github.com/arcrek/xray-vless-ws-go
 BIN_DIR := bin
-LDFLAGS := -s -w
+# VERSION defaults to `git describe` (e.g. v1.2.0, v1.2.0-3-gabc1234, or
+# -dirty appended for uncommitted changes); falls back to a short commit
+# hash via --always when no tag exists yet, and to "dev" when git itself
+# errors (e.g. a source tarball with no .git/). CI overrides this with
+# `make build-all VERSION=<release-tag>` so released binaries report their
+# actual release tag rather than a git-describe guess.
+VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+LDFLAGS := -s -w -X main.Version=$(VERSION)
 
 .PHONY: build build-all build-linux-amd64 build-linux-arm64 build-windows-amd64 \
         build-darwin-amd64 build-darwin-arm64 build-android-arm64 \
@@ -8,7 +15,7 @@ LDFLAGS := -s -w
 
 # Local dev build: native GOOS/GOARCH, cgo enabled (whatever the host default is).
 build:
-	go build -o $(BIN_DIR)/xrayws ./cmd/xrayws
+	go build -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/xrayws ./cmd/xrayws
 
 # All supported platforms, minus android/arm64 (see note in README.md — a
 # transitive dependency currently fails to link on that target with

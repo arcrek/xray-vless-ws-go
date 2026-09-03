@@ -31,13 +31,6 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Cross-compile all platforms
-        run: make build-all
-
-      - name: Generate checksums
-        working-directory: bin
-        run: sha256sum * > SHA256SUMS
-
       - name: Resolve release tag
         id: tag
         env:
@@ -48,6 +41,15 @@ jobs:
           else
             echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Cross-compile all platforms
+        env:
+          VERSION: ${{ steps.tag.outputs.tag }}
+        run: make build-all VERSION="$VERSION"
+
+      - name: Generate checksums
+        working-directory: bin
+        run: sha256sum * > SHA256SUMS
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
