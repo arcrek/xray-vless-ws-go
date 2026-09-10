@@ -9,6 +9,7 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io/fs"
 	"net/http"
 	"os"
@@ -24,8 +25,9 @@ type Server struct {
 	Addr       string       // e.g. "0.0.0.0:9999"
 	Password   string       // empty = auth disabled
 	Status     *StatusStore // always non-nil
-	ConfigPath string       // path to frp_info.config (default: "frp_info.config")
-	JSONPath   string       // path to frp_info.json (default: "frp_info.json")
+	Domain     string       // e.g. "example.com" -> vless.example.com
+	ConfigPath string       // path to vless_info.config (default: "vless_info.config")
+	JSONPath   string       // path to vless_info.json (default: "vless_info.json")
 
 	ring       *Ring
 	httpServer *http.Server
@@ -38,8 +40,8 @@ func New(addr, password string, maxLogs int) *Server {
 		Addr:       addr,
 		Password:   password,
 		Status:     NewStatusStore(),
-		ConfigPath: "frp_info.config",
-		JSONPath:   "frp_info.json",
+		ConfigPath: "vless_info.config",
+		JSONPath:   "vless_info.json",
 		ring:       NewRing(maxLogs),
 		authSecret: generateAuthSecret(),
 	}
@@ -70,6 +72,9 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("/api/logout", s.handleLogout)
 	mux.HandleFunc("/api/auth-status", s.handleAuthStatus)
 
+	// Subscription endpoints (Public)
+	mux.HandleFunc("/sub", s.handleSubscription)
+	mux.HandleFunc("/subscription", s.handleSubscription)
 	// Protected APIs
 	mux.Handle("/logs", s.withAuth(http.HandlerFunc(s.handleLogs)))
 	mux.Handle("/stats", s.withAuth(http.HandlerFunc(s.handleStats)))
@@ -214,18 +219,29 @@ func (s *Server) handleVlessInfo(w http.ResponseWriter, r *http.Request) {
 
 	cfgPath := s.ConfigPath
 	if cfgPath == "" {
-		cfgPath = "frp_info.config"
+		cfgPath = "vless_info.config"
 	}
 
 	content, err := os.ReadFile(cfgPath)
+	if err != nil && cfgPath == "vless_info.config" {
+		if fb, errFb := os.ReadFile("frp_info.config"); errFb == nil {
+			content = fb
+			err = nil
+		}
+	}
 	if err != nil {
-		json.NewEncoder(w).Encode(map[string]any{
+		resp := map[string]any{
 			"ready":         false,
 			"links":         []string{},
 			"raw_config":    "",
 			"base64_config": "",
 			"message":       "Config file not generated yet",
-		})
+			"sub_path":      "/sub",
+		}
+		if s.Domain != "" {
+			resp["worker_sub_url"] = fmt.Sprintf("https://vless.%s/sub", s.Domain)
+		}
+		json.NewEncoder(w).Encode(resp)
 		return
 	}
 
@@ -248,13 +264,21 @@ func (s *Server) handleVlessInfo(w http.ResponseWriter, r *http.Request) {
 		"links":         links,
 		"raw_config":    rawStr,
 		"base64_config": b64Config,
+		"sub_path":      "/sub",
+	}
+	if s.Domain != "" {
+		resp["worker_sub_url"] = fmt.Sprintf("https://vless.%s/sub", s.Domain)
 	}
 
 	jsonPath := s.JSONPath
 	if jsonPath == "" {
-		jsonPath = "frp_info.json"
+		jsonPath = "vless_info.json"
 	}
-	if jContent, err := os.ReadFile(jsonPath); err == nil {
+	jContent, err := os.ReadFile(jsonPath)
+	if err != nil && jsonPath == "vless_info.json" {
+		jContent, _ = os.ReadFile("frp_info.json")
+	}
+	if jContent != nil {
 		var meta map[string]any
 		if json.Unmarshal(jContent, &meta) == nil {
 			resp["meta"] = meta
@@ -274,6 +298,41 @@ func (s *Server) handleVlessInfo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.NewEncoder(w).Encode(resp)
+}
+
+// handleSubscription serves GET /sub and GET /subscription (public, no auth required).
+func (s *Server) handleSubscription(w http.ResponseWriter, r *http.Request) {
+	cfgPath := s.ConfigPath
+	if cfgPath == "" {
+		cfgPath = "vless_info.config"
+	}
+
+	content, err := os.ReadFile(cfgPath)
+	if err != nil && cfgPath == "vless_info.config" {
+		if fb, errFb := os.ReadFile("frp_info.config"); errFb == nil {
+			content = fb
+			err = nil
+		}
+	}
+	if err != nil {
+		http.Error(w, "Subscription not ready", http.StatusServiceUnavailable)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Profile-Update-Interval", "24")
+	w.Header().Set("Content-Disposition", `inline; filename="vless_subscription.txt"`)
+	w.Header().Set("Subscription-Userinfo", "upload=0; download=0; total=1073741824000; expire=0")
+
+	if r.URL.Query().Get("raw") == "1" || r.URL.Query().Get("raw") == "true" {
+		w.Write(content)
+		return
+	}
+
+	b64 := base64.StdEncoding.EncodeToString(content)
+	w.Write([]byte(b64))
 }
 
 // handleLogs serves GET /logs?last_id=N -> {"new_logs":[...],"last_id":N}.

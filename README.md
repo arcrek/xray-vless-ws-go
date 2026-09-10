@@ -229,11 +229,25 @@ binary-download-check + config-file-write + separate-process cold start.
 ## CI bridge (`--ci-mode`)
 
 Exports the `ENV_CONFIG` GitHub Secret to `.env`, watches
-`frp_info.config`/`frp_info.json` for changes and
+`vless_info.config`/`vless_info.json` for changes and
 force-pushes them to the `config` branch, optionally self re-dispatches the
 workflow after 5h (`BRIDGE_WORKFLOWS=true`), and self-exits after 5h40 to
 stay under the Actions 6h job limit. No longer wired into
 `.github/workflows/` — see the note in Run (manual) above.
+
+## Node exports & Subscription URL
+
+Whenever the Cloudflare Tunnel establishes or changes hostname, the server exports:
+- `vless_info.config`: Raw newline-delimited `vless://` URLs.
+- `vless_info.json`: Metadata JSON (`payloads`, `ip`, `wshost`, `wspath`, `transport`, `start_time`).
+
+### Public Subscription Endpoints
+
+Standard V2Ray clients (v2rayNG, Shadowrocket, Sing-box, V2RayN) can auto-sync node configurations periodically via HTTP/HTTPS:
+- **Embedded logserver (`/sub`)**: Serves Base64-encoded `vless://` links directly from the local binary at `http://<HOST>:<PORT>/sub` (`?raw=1` for plaintext).
+- **Cloudflare Worker (`https://vless.<DOMAIN>/sub`)**: When deployed via auto-deploy, the Worker caches the node list in Workers KV (`SUBSCRIPTION`) and serves the subscription globally over Cloudflare TLS.
+
+The dashboard QR code renders the compact Subscription URL rather than high-density Base64 data dumps, ensuring instant scanning across mobile cameras.
 
 ## Build & Release Action (`.github/workflows/build.yml`)
 

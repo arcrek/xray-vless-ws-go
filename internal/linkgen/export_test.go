@@ -9,8 +9,8 @@ import (
 
 func TestExportWritesBothFiles(t *testing.T) {
 	dir := t.TempDir()
-	configPath := filepath.Join(dir, "frp_info.config")
-	jsonPath := filepath.Join(dir, "frp_info.json")
+	configPath := filepath.Join(dir, "vless_info.config")
+	jsonPath := filepath.Join(dir, "vless_info.json")
 
 	links := []string{"vless://a", "vless://b"}
 	meta := ExportMeta{IP: "1.2.3.4", WSHost: "host.trycloudflare.com", WSPath: "/p", Transport: "websocket", StartTime: 1000}
@@ -53,7 +53,7 @@ func TestExportConfigWriteFailureDoesNotBlockJSONWrite(t *testing.T) {
 	// A directory path where a file is expected forces the config write to
 	// fail, independent of the JSON write.
 	badConfigPath := dir // writing to a directory path fails
-	jsonPath := filepath.Join(dir, "frp_info.json")
+	jsonPath := filepath.Join(dir, "vless_info.json")
 
 	err := Export([]string{"vless://a"}, ExportMeta{IP: "1.2.3.4"}, badConfigPath, jsonPath)
 	if err == nil {

@@ -61,10 +61,12 @@ const sparklineCanvas = document.getElementById("sparkline");
 const vlessNodesContainer = document.getElementById("vless-nodes-container");
 const subQrCanvas = document.getElementById("sub-qr-canvas");
 const qrPreviewBox = document.getElementById("qr-preview-box");
+const subUrlInput = document.getElementById("sub-url-input");
+const btnCopySubUrl = document.getElementById("btn-copy-sub-url");
+const btnCopySubUrlInput = document.getElementById("btn-copy-sub-url-input");
 const btnCopySubB64 = document.getElementById("btn-copy-sub-b64");
 const btnCopyRawConfig = document.getElementById("btn-copy-raw-config");
 const btnDownloadConfig = document.getElementById("btn-download-config");
-
 // Logs Elements
 const logContainer = document.getElementById("log-container");
 const logSearch = document.getElementById("log-search");
@@ -205,6 +207,7 @@ function renderVlessView(data) {
                 Đang chờ Cloudflare Tunnel hoàn tất khởi tạo cấu hình VLESS...
             </div>
         `;
+        if (subUrlInput) subUrlInput.value = "";
         const ctx = subQrCanvas.getContext("2d");
         ctx.clearRect(0, 0, subQrCanvas.width, subQrCanvas.height);
         return;
@@ -306,10 +309,16 @@ function renderVlessView(data) {
         vlessNodesContainer.appendChild(card);
     });
 
-    // Render Base64 Subscription QR Code Canvas
-    if (data.base64_config && window.QRCode) {
+    // Determine Subscription URL
+    const subUrl = data.worker_sub_url || (window.location.origin + (data.sub_path || "/sub"));
+    if (subUrlInput) {
+        subUrlInput.value = subUrl;
+    }
+
+    // Render Subscription URL QR Code Canvas (Compact & Low Density)
+    if (subUrl && window.QRCode) {
         try {
-            QRCode.renderCanvas(data.base64_config, subQrCanvas, {
+            QRCode.renderCanvas(subUrl, subQrCanvas, {
                 cellSize: 4,
                 margin: 2,
                 dark: "#000000",
@@ -733,17 +742,27 @@ function initEventListeners() {
         copyToClipboard(hostnameElem.textContent, "Đã sao chép Hostname!");
     });
 
-    // Copy Base64 Subscription
+    // Copy Subscription URL
+    const copySubUrl = () => {
+        if (vlessData) {
+            const subUrl = vlessData.worker_sub_url || (window.location.origin + (vlessData.sub_path || "/sub"));
+            copyToClipboard(subUrl, "Đã sao chép URL Subscription!");
+        }
+    };
+    if (btnCopySubUrl) btnCopySubUrl.addEventListener("click", copySubUrl);
+    if (btnCopySubUrlInput) btnCopySubUrlInput.addEventListener("click", copySubUrl);
+
+    // Copy Base64 Subscription (Offline)
     btnCopySubB64.addEventListener("click", () => {
         if (vlessData && vlessData.base64_config) {
-            copyToClipboard(vlessData.base64_config, "Đã sao chép chuỗi Base64 Subscription!");
+            copyToClipboard(vlessData.base64_config, "Đã sao chép chuỗi Base64 Subscription (Offline)!");
         }
     });
 
     // Copy Raw Config
     btnCopyRawConfig.addEventListener("click", () => {
         if (vlessData && vlessData.raw_config) {
-            copyToClipboard(vlessData.raw_config, "Đã sao chép nội dung frp_info.config!");
+            copyToClipboard(vlessData.raw_config, "Đã sao chép nội dung vless_info.config!");
         }
     });
 
@@ -754,19 +773,20 @@ function initEventListeners() {
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
-            a.download = "frp_info.config";
+            a.download = "vless_info.config";
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-            showToast("Đã tải xuống file frp_info.config", "success");
+            showToast("Đã tải xuống file vless_info.config", "success");
         }
     });
 
     // Zoom QR Preview
     qrPreviewBox.addEventListener("click", () => {
-        if (vlessData && vlessData.base64_config) {
-            openQrModal(vlessData.base64_config, "Mã QR Subscription (Base64)");
+        if (vlessData) {
+            const subUrl = vlessData.worker_sub_url || (window.location.origin + (vlessData.sub_path || "/sub"));
+            openQrModal(subUrl, "Mã QR URL Subscription");
         }
     });
 

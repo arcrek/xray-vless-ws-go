@@ -3,13 +3,16 @@ package logserver
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -181,10 +184,11 @@ func TestServerBasicAuthBackwardCompatibility(t *testing.T) {
 func TestServerVlessInfoEndpoint(t *testing.T) {
 	addr := freeLocalAddr(t)
 	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, "frp_info.config")
-	jsonPath := filepath.Join(tmpDir, "frp_info.json")
+	cfgPath := filepath.Join(tmpDir, "vless_info.config")
+	jsonPath := filepath.Join(tmpDir, "vless_info.json")
 
 	s := New(addr, "", 500)
+	s.Domain = "example.com"
 	s.ConfigPath = cfgPath
 	s.JSONPath = jsonPath
 
@@ -207,7 +211,7 @@ func TestServerVlessInfoEndpoint(t *testing.T) {
 		t.Errorf("expected ready=false before file written")
 	}
 
-	// 2. Write mock frp_info.config and frp_info.json
+	// 2. Write mock vless_info.config and vless_info.json
 	link1 := "vless://uuid-1@tunnel.example.com:443?type=ws&security=tls#Node-1"
 	link2 := "vless://uuid-2@tunnel.example.com:443?type=ws&security=tls#Node-2"
 	_ = os.WriteFile(cfgPath, []byte(link1+"\n"+link2), 0o644)
@@ -223,6 +227,8 @@ func TestServerVlessInfoEndpoint(t *testing.T) {
 		Links        []string `json:"links"`
 		RawConfig    string   `json:"raw_config"`
 		Base64Config string   `json:"base64_config"`
+		SubPath      string   `json:"sub_path"`
+		WorkerSubURL string   `json:"worker_sub_url"`
 		IP           string   `json:"ip"`
 		WSHost       string   `json:"wshost"`
 		WSPath       string   `json:"wspath"`
@@ -241,6 +247,146 @@ func TestServerVlessInfoEndpoint(t *testing.T) {
 	}
 	if infoResp2.WSHost != "tunnel.example.com" {
 		t.Errorf("expected wshost tunnel.example.com, got %s", infoResp2.WSHost)
+	}
+	if infoResp2.SubPath != "/sub" {
+		t.Errorf("expected sub_path /sub, got %s", infoResp2.SubPath)
+	}
+	if infoResp2.WorkerSubURL != "https://vless.example.com/sub" {
+		t.Errorf("expected worker_sub_url https://vless.example.com/sub, got %s", infoResp2.WorkerSubURL)
+	}
+}
+
+func TestServerSubscriptionEndpoint(t *testing.T) {
+	addr := freeLocalAddr(t)
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "vless_info.config")
+
+	s := New(addr, "secret-password", 500)
+	s.ConfigPath = cfgPath
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go s.Start(ctx)
+	waitForServer(t, addr)
+
+	// 1. Before file exists -> 503 Service Unavailable (unauthenticated endpoint)
+	resp503, err := http.Get(fmt.Sprintf("http://%s/sub", addr))
+	if err != nil {
+		t.Fatalf("GET /sub: %v", err)
+	}
+	if resp503.StatusCode != http.StatusServiceUnavailable {
+		t.Errorf("expected status 503 before config exists, got %d", resp503.StatusCode)
+	}
+	resp503.Body.Close()
+
+	// 2. Write vless_info.config
+	link1 := "vless://uuid-1@tunnel.example.com:443?type=ws&security=tls#TLS"
+	link2 := "vless://uuid-2@tunnel.example.com:80?type=ws&security=#NO%20TLS"
+	configContent := link1 + "\n" + link2
+	if err := os.WriteFile(cfgPath, []byte(configContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// 3. GET /sub (base64, check headers)
+	respSub, err := http.Get(fmt.Sprintf("http://%s/sub", addr))
+	if err != nil {
+		t.Fatalf("GET /sub: %v", err)
+	}
+	defer respSub.Body.Close()
+
+	if respSub.StatusCode != http.StatusOK {
+		t.Errorf("expected 200 OK, got %d", respSub.StatusCode)
+	}
+	if ct := respSub.Header.Get("Content-Type"); !strings.Contains(ct, "text/plain") {
+		t.Errorf("expected Content-Type text/plain, got %s", ct)
+	}
+	if interval := respSub.Header.Get("Profile-Update-Interval"); interval != "24" {
+		t.Errorf("expected Profile-Update-Interval 24, got %s", interval)
+	}
+	if cors := respSub.Header.Get("Access-Control-Allow-Origin"); cors != "*" {
+		t.Errorf("expected Access-Control-Allow-Origin *, got %s", cors)
+	}
+	if userInfo := respSub.Header.Get("Subscription-Userinfo"); userInfo == "" {
+		t.Errorf("expected non-empty Subscription-Userinfo header")
+	}
+
+	b64Body, err := io.ReadAll(respSub.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := base64.StdEncoding.DecodeString(string(b64Body))
+	if err != nil {
+		t.Fatalf("base64 decode error: %v", err)
+	}
+	if string(decoded) != configContent {
+		t.Errorf("decoded base64 = %q, want %q", string(decoded), configContent)
+	}
+
+	// 4. GET /subscription alias
+	respAlias, err := http.Get(fmt.Sprintf("http://%s/subscription", addr))
+	if err != nil {
+		t.Fatalf("GET /subscription: %v", err)
+	}
+	aliasBody, _ := io.ReadAll(respAlias.Body)
+	respAlias.Body.Close()
+	if string(aliasBody) != string(b64Body) {
+		t.Errorf("alias /subscription did not match /sub")
+	}
+
+	// 5. GET /sub?raw=1
+	respRaw, err := http.Get(fmt.Sprintf("http://%s/sub?raw=1", addr))
+	if err != nil {
+		t.Fatalf("GET /sub?raw=1: %v", err)
+	}
+	rawBody, _ := io.ReadAll(respRaw.Body)
+	respRaw.Body.Close()
+	if string(rawBody) != configContent {
+		t.Errorf("raw response = %q, want %q", string(rawBody), configContent)
+	}
+
+	// 6. Test fallback to frp_info.config when vless_info.config is absent and default path is used
+	addrFallback := freeLocalAddr(t)
+	sFallback := New(addrFallback, "", 500)
+	// Run in a temp dir where only frp_info.config exists
+	fallbackDir := t.TempDir()
+	cwd, _ := os.Getwd()
+	if err := os.Chdir(fallbackDir); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.Chdir(cwd) }()
+
+	_ = os.WriteFile("frp_info.config", []byte("vless://legacy-link"), 0o644)
+	_ = os.WriteFile("frp_info.json", []byte(`{"ip":"5.6.7.8","wshost":"legacy.com"}`), 0o644)
+
+	ctxFallback, cancelFallback := context.WithCancel(context.Background())
+	defer cancelFallback()
+	go sFallback.Start(ctxFallback)
+	waitForServer(t, addrFallback)
+
+	respFB, err := http.Get(fmt.Sprintf("http://%s/sub?raw=true", addrFallback))
+	if err != nil {
+		t.Fatalf("GET fallback /sub: %v", err)
+	}
+	fbBody, _ := io.ReadAll(respFB.Body)
+	respFB.Body.Close()
+	if string(fbBody) != "vless://legacy-link" {
+		t.Errorf("fallback body = %q, want %q", string(fbBody), "vless://legacy-link")
+	}
+
+	// Also check fallback in /api/vless-info
+	respVlessFB, err := http.Get(fmt.Sprintf("http://%s/api/vless-info", addrFallback))
+	if err != nil {
+		t.Fatalf("GET /api/vless-info fallback: %v", err)
+	}
+	var vlessFB struct {
+		Ready     bool   `json:"ready"`
+		RawConfig string `json:"raw_config"`
+		WSHost    string `json:"wshost"`
+	}
+	json.NewDecoder(respVlessFB.Body).Decode(&vlessFB)
+	respVlessFB.Body.Close()
+	if !vlessFB.Ready || vlessFB.RawConfig != "vless://legacy-link" || vlessFB.WSHost != "legacy.com" {
+		t.Errorf("vlessFB fallback mismatch: %+v", vlessFB)
 	}
 }
 

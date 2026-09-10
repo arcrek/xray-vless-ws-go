@@ -5,6 +5,8 @@ config.json
 config.yml
 frp_info.config
 frp_info.json
+vless_info.config
+vless_info.json
 xray.zip
 cloudflared
 wgcf.xray.json

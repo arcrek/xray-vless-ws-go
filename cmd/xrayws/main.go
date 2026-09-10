@@ -33,7 +33,7 @@ import (
 var Version = "dev"
 
 func main() {
-	ciMode := flag.Bool("ci-mode", false, "Run the GitHub Actions CI bridge alongside the proxy (export ENV_CONFIG, watch+upload frp_info.*, self re-dispatch, self-exit before the 6h job limit)")
+	ciMode := flag.Bool("ci-mode", false, "Run the GitHub Actions CI bridge alongside the proxy (export ENV_CONFIG, watch+upload vless_info.*, self re-dispatch, self-exit before the 6h job limit)")
 	logPort := flag.Int("log-port", 9999, "Port for the embedded log viewer (0 disables it)")
 	doUpdate := flag.Bool("update", false, "Check GitHub Releases for a newer version, download+verify+install it, and restart the systemd service")
 	doRollback := flag.Bool("rollback", false, "Swap back to the binary from before the last --update and restart the systemd service")
@@ -140,6 +140,7 @@ func run(ctx context.Context, ciMode bool, logPort int) error {
 	var logSrv *logserver.Server
 	if logPort > 0 {
 		logSrv = logserver.New(fmt.Sprintf("0.0.0.0:%d", logPort), cfg.LogPassword, 500)
+		logSrv.Domain = cfg.Domain
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -264,7 +265,7 @@ func run(ctx context.Context, ciMode bool, logPort int) error {
 		token := os.Getenv("GITHUB_TOKEN")
 		repo := os.Getenv("GITHUB_REPOSITORY")
 		go ci.WatchAndUpload(ctx, token, repo,
-			[]string{"frp_info.config", "frp_info.json"}, "config", "__tmp__",
+			[]string{"vless_info.config", "vless_info.json"}, "config", "__tmp__",
 			logf("CI", true))
 		ci.ScheduleBridge(ctx, logf("CI", true))
 		ci.ScheduleSelfExit(ctx, func() {
@@ -327,7 +328,7 @@ func exportLinks(ctx context.Context, cfg *config.Config, logSrv *logserver.Serv
 		StartTime: startTime,
 	}
 
-	if err := linkgen.Export(links, meta, "frp_info.config", "frp_info.json"); err != nil {
+	if err := linkgen.Export(links, meta, "vless_info.config", "vless_info.json"); err != nil {
 		fmt.Fprintf(os.Stderr, "[!] linkgen export error: %v\n", err)
 	}
 
