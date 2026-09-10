@@ -669,10 +669,39 @@ body {
     max-height: 170px;
 }
 
+.sub-url-box {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    gap: 6px;
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 4px 6px;
+    box-sizing: border-box;
+}
+
+.sub-url-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    outline: none;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
 .sub-info-text {
     font-size: 11.5px;
     color: var(--text-muted);
     line-height: 1.5;
+}
+
+.sub-card .btn {
+    margin-top: 2px;
 }
 
 /* ── Section 3: Network Throughput Chart ─────────────────── */

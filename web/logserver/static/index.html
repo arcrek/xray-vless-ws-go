@@ -130,11 +130,11 @@
                         Cấu hình VLESS &amp; Mã QR
                     </div>
                     <div class="card-header-actions">
-                        <button id="btn-copy-raw-config" class="btn btn-sm btn-secondary" title="Sao chép toàn bộ nội dung file frp_info.config">
+                        <button id="btn-copy-raw-config" class="btn btn-sm btn-secondary" title="Sao chép toàn bộ nội dung file vless_info.config">
                             <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
                             Sao chép Config
                         </button>
-                        <button id="btn-download-config" class="btn btn-sm btn-secondary" title="Tải xuống file frp_info.config">
+                        <button id="btn-download-config" class="btn btn-sm btn-secondary" title="Tải xuống file vless_info.config">
                             <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                             Tải Config
                         </button>
@@ -153,15 +153,25 @@
                         <div class="sub-card">
                             <div class="sub-card-header">
                                 <svg class="icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="8" height="8" rx="1"/><rect x="14" y="2" width="8" height="8" rx="1"/><rect x="2" y="14" width="8" height="8" rx="1"/><rect x="14" y="14" width="4" height="4" rx="1"/><line x1="22" y1="18" x2="22" y2="22"/><line x1="18" y1="22" x2="22" y2="22"/></svg>
-                                <span class="sub-card-title">Mã QR Đăng ký (Subscription)</span>
+                                <span class="sub-card-title">Mã QR Đăng ký (Subscription URL)</span>
                             </div>
                             <div class="qr-preview-wrapper" id="qr-preview-box" title="Bấm để phóng to mã QR">
                                 <canvas id="sub-qr-canvas" class="qr-preview-canvas"></canvas>
                             </div>
-                            <p class="sub-info-text">Quét mã QR hoặc sao chép chuỗi Base64 để nhập tự động vào V2RayN, v2rayNG, Shadowrocket, Sing-box.</p>
-                            <button id="btn-copy-sub-b64" class="btn btn-primary btn-sm btn-full">
+                            <div class="sub-url-box">
+                                <input type="text" id="sub-url-input" class="sub-url-input" readonly spellcheck="false" placeholder="Đang tạo Subscription URL...">
+                                <button id="btn-copy-sub-url-input" class="btn btn-icon" title="Sao chép URL" aria-label="Sao chép URL">
+                                    <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                                </button>
+                            </div>
+                            <p class="sub-info-text">Quét mã QR hoặc sao chép URL Subscription để nhập và tự động đồng bộ cấu hình trên V2RayN, v2rayNG, Shadowrocket, Sing-box.</p>
+                            <button id="btn-copy-sub-url" class="btn btn-primary btn-sm btn-full">
+                                <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                                Sao chép URL Subscription
+                            </button>
+                            <button id="btn-copy-sub-b64" class="btn btn-secondary btn-sm btn-full">
                                 <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-                                Sao chép chuỗi Base64
+                                Sao chép chuỗi Base64 (Offline)
                             </button>
                         </div>
                     </div>

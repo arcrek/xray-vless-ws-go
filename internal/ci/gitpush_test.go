@@ -87,7 +87,7 @@ func TestUploadFileCreatesOrphanBranchAndPushes(t *testing.T) {
 	remote := newBareRemote(t)
 	tempDir := t.TempDir()
 
-	srcFile := filepath.Join(t.TempDir(), "frp_info.config")
+	srcFile := filepath.Join(t.TempDir(), "vless_info.config")
 	if err := os.WriteFile(srcFile, []byte("vless://test-link"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +100,7 @@ func TestUploadFileCreatesOrphanBranchAndPushes(t *testing.T) {
 	if _, err := runGit(context.Background(), "", "clone", "--branch", "config", remote, verifyDir); err != nil {
 		t.Fatalf("verify clone: %v", err)
 	}
-	content, err := os.ReadFile(filepath.Join(verifyDir, "frp_info.config"))
+	content, err := os.ReadFile(filepath.Join(verifyDir, "vless_info.config"))
 	if err != nil {
 		t.Fatalf("reading uploaded file from verify clone: %v", err)
 	}
@@ -114,7 +114,7 @@ func TestUploadFileSecondCallOverwritesOnExistingBranch(t *testing.T) {
 	remote := newBareRemote(t)
 	tempDir := t.TempDir()
 
-	srcFile := filepath.Join(t.TempDir(), "frp_info.config")
+	srcFile := filepath.Join(t.TempDir(), "vless_info.config")
 	os.WriteFile(srcFile, []byte("first-content"), 0o644)
 	uploadFileToLocalRemote(t, remote, srcFile, "config", "", tempDir)
 
@@ -125,7 +125,7 @@ func TestUploadFileSecondCallOverwritesOnExistingBranch(t *testing.T) {
 	if _, err := runGit(context.Background(), "", "clone", "--branch", "config", remote, verifyDir); err != nil {
 		t.Fatalf("verify clone: %v", err)
 	}
-	content, err := os.ReadFile(filepath.Join(verifyDir, "frp_info.config"))
+	content, err := os.ReadFile(filepath.Join(verifyDir, "vless_info.config"))
 	if err != nil {
 		t.Fatal(err)
 	}

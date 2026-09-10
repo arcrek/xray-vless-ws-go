@@ -10,11 +10,11 @@ upload; do not hand-edit it into a real password here.
 Created by: HuskyDG
 */
 
-// initial global variables to store the target host and path
+// initial global variables to store the target host, path, and subscription
 let GLOBAL_TARGET_HOST = "";
 let GLOBAL_TARGET_PATH = "";
 let GLOBAL_ENTRY_PATH = "";
-
+let GLOBAL_SUB = "";
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -42,12 +42,21 @@ export default {
           wshost = jsonBody.wshost;
           wspath = jsonBody.wspath;
           entrypath = jsonBody.entrypath;
+          const payloads = jsonBody.payloads;
+          if (Array.isArray(payloads) && payloads.length > 0) {
+            try {
+              const subContent = btoa(unescape(encodeURIComponent(payloads.join("\n"))));
+              GLOBAL_SUB = subContent;
+              if (env.KV_CONFIG) {
+                await env.KV_CONFIG.put("SUBSCRIPTION", subContent);
+              }
+            } catch (_) {}
+          }
         } else {
           wshost = url.searchParams.get("wshost");
           wspath = url.searchParams.get("wspath");
           entrypath = url.searchParams.get("entrypath");
         }
-
         if (!entrypath) entrypath = wspath;
 
         if (!wshost || !wspath) {
@@ -83,7 +92,42 @@ export default {
       }
     }
 
-    // If the request is not to /setapi, proceed to handle it as a proxy request
+    // ==========================================
+    // PUBLIC SUBSCRIPTION ENDPOINT (/sub, /subscription)
+    // ==========================================
+    if (url.pathname === "/sub" || url.pathname === "/subscription") {
+      let sub = GLOBAL_SUB;
+      if (!sub && env.KV_CONFIG) {
+        sub = await env.KV_CONFIG.get("SUBSCRIPTION");
+        if (sub) GLOBAL_SUB = sub;
+      }
+      if (!sub) {
+        return new Response("Subscription not ready", { status: 503 });
+      }
+      let body = sub;
+      if (url.searchParams.get("raw") === "1" || url.searchParams.get("raw") === "true") {
+        try {
+          body = decodeURIComponent(escape(atob(sub)));
+        } catch (_) {
+          try {
+            body = atob(sub);
+          } catch (_) {}
+        }
+      }
+      return new Response(body, {
+        status: 200,
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+          "Cache-Control": "no-cache, no-store, must-revalidate",
+          "Access-Control-Allow-Origin": "*",
+          "Profile-Update-Interval": "24",
+          "Content-Disposition": 'inline; filename="vless_subscription.txt"',
+          "Subscription-Userinfo": "upload=0; download=0; total=1073741824000; expire=0"
+        }
+      });
+    }
+
+    // If the request is not to /setapi or /sub, proceed to handle it as a proxy request
     if (env.KV_CONFIG) {
       if (!GLOBAL_TARGET_HOST || !GLOBAL_TARGET_PATH) {
           // If the global variables are empty, try to load from KV (if KV is set up)

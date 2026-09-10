@@ -12,7 +12,7 @@ planning notes that produced it (never shipped in this repo).
 | `internal/config` | `.env` loading (via `godotenv`), validation, defaults, secret generation |
 | `internal/xraycore` | Embedded xray-core lifecycle + JSON config builder |
 | `internal/tunnel` | cloudflared download, spawn, hostname/ready detection, restart supervision |
-| `internal/linkgen` | `vless://` link building, `frp_info.config`/`.json` writer, webhook delivery |
+| `internal/linkgen` | `vless://` link building, `vless_info.config`/`.json` writer, webhook delivery |
 | `internal/logserver` | Embedded HTTP dashboard: realtime log viewer + `/stats` (xray/tunnel status, traffic throughput) — `go:embed` assets from `web/logserver` |
 | `internal/ci` | GitHub Actions CI bridge (export secret, watch+upload, re-dispatch) |
 | `internal/cfdeploy` | Cloudflare Worker bridge + named Tunnel auto-provision via the Cloudflare REST API |
@@ -252,9 +252,17 @@ New package `internal/selfupdate`, one file per concern (mirroring
 `--version`) *before* `config.Load()` and all proxy bootstrap, so the
 update path works even against a broken/missing `.env` and never
 initializes xray-core.
+## Decision log — vless_info rename & public Subscription URL
+
+| # | Decision | Chosen | Rejected alternatives |
+|---|----------|--------|------------------------|
+| 1 | File naming | `vless_info.config` / `vless_info.json` | Keep `frp_info.*` (legacy term causes confusion with Android Factory Reset Protection and obsolete FRP setups) |
+| 2 | Backward compatibility | Graceful fallback in `logserver` to read `frp_info.*` if `vless_info.*` is absent | Hard fail if only legacy files exist |
+| 3 | Subscription delivery | Public `/sub` HTTP endpoint on embedded logserver and Cloudflare Worker (`https://vless.<DOMAIN>/sub`), returning Base64 with standard V2Ray headers (`Profile-Update-Interval`, `Subscription-Userinfo`, CORS `*`) | Embed 2KB raw Base64 data dump inside QR canvas (high density, cannot auto-sync) |
+| 4 | Subscription QR encoding | Encode the short Subscription URL into the QR code canvas | High-density Base64 data QR |
+| 5 | Offline workflow | Retain secondary "Sao chép Base64 (Offline)" button alongside primary "Sao chép URL Subscription" button | Drop Base64 export entirely |
 
 ## Known limitations
-
 - **android/arm64**: `GOOS=android GOARCH=arm64 CGO_ENABLED=0 go build` fails
   at link time (`link: github.com/wlynxg/anet: invalid reference to
   net.zoneCache`) — a transitive dependency (`xray-core → infra/conf →

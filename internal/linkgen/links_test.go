@@ -9,12 +9,12 @@ import (
 )
 
 // TestBuildLinksGoldenFixture golden-tests BuildLinks against
-// testdata/golden_frp_info.config — a fixed-input fixture, not
+// testdata/golden_vless_info.config — a fixed-input fixture, not
 // hand-written — so URL-encoding correctness (Go's QueryEscape/PathEscape
 // diverge from a naive quote(safe="") on space and '&') is verified
 // byte-for-byte rather than assumed.
 func TestBuildLinksGoldenFixture(t *testing.T) {
-	golden, err := os.ReadFile("testdata/golden_frp_info.config")
+	golden, err := os.ReadFile("testdata/golden_vless_info.config")
 	if err != nil {
 		t.Fatalf("reading golden fixture: %v", err)
 	}
