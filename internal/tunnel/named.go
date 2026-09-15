@@ -18,10 +18,14 @@ import (
 // No hostname is ever scraped from logs for this path (verify this
 // explicitly: grep the named-tunnel launch code for any log-parsing call —
 // there is none, Launch() reads WS_HOST directly from config).
-func WriteNamedTunnelConfig(path, wsHost, targetIP string, targetPort int) error {
+func WriteNamedTunnelConfig(path, wsHost, targetIP string, targetPort int, http2Origin bool) error {
+	var originBlock string
+	if http2Origin {
+		originBlock = "    originRequest:\n      http2Origin: true\n"
+	}
 	content := fmt.Sprintf(
-		"ingress:\n  - hostname: %s\n    service: http://%s:%d\n  - service: http_status:404\n",
-		wsHost, targetIP, targetPort,
+		"ingress:\n  - hostname: %s\n    service: http://%s:%d\n%s  - service: http_status:404\n",
+		wsHost, targetIP, targetPort, originBlock,
 	)
 	return os.WriteFile(path, []byte(content), 0o600)
 }

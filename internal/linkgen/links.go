@@ -26,17 +26,29 @@ func BuildLinks(cfg *config.Config, uuid, tunnelHost string) []string {
 		tunnelHostInfo = cfg.WSHost
 	}
 
-	const netType = "ws"
+	isXHTTP := cfg.Transport == "xhttp"
+	netType := "ws"
+	extraParamsTLS := "&ed=2048"
+	extraParamsNoTLS := "&ed=2048"
+	if isXHTTP {
+		netType = "xhttp"
+		mode := cfg.XHTTPMode
+		if mode == "" {
+			mode = "auto"
+		}
+		extraParamsTLS = "&alpn=h2&mode=" + mode
+		extraParamsNoTLS = "&mode=" + mode
+	}
 
 	payloads := make([]string, 0, len(cfg.FakeSNI)*2)
 	for _, entry := range cfg.FakeSNI {
 		encodedRemark := safeQuote(entry.Remark)
 
 		payloads = append(payloads,
-			fmt.Sprintf("vless://%s@%s:443?type=%s&encryption=none&security=tls&path=%s&host=%s&sni=%s&ed=2048#%s%%20TLS",
-				uuid, entry.SNI, netType, encodedPath, tunnelHostInfo, tunnelHostInfo, encodedRemark),
-			fmt.Sprintf("vless://%s@%s:80?type=%s&encryption=none&security=&path=%s&host=%s&ed=2048#%s%%20NO%%20TLS",
-				uuid, entry.SNI, netType, encodedPath, tunnelHostInfo, encodedRemark),
+			fmt.Sprintf("vless://%s@%s:443?type=%s&encryption=none&security=tls&path=%s&host=%s&sni=%s%s#%s%%20TLS",
+				uuid, entry.SNI, netType, encodedPath, tunnelHostInfo, tunnelHostInfo, extraParamsTLS, encodedRemark),
+			fmt.Sprintf("vless://%s@%s:80?type=%s&encryption=none&security=&path=%s&host=%s%s#%s%%20NO%%20TLS",
+				uuid, entry.SNI, netType, encodedPath, tunnelHostInfo, extraParamsNoTLS, encodedRemark),
 		)
 	}
 	return payloads

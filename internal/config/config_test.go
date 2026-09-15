@@ -112,7 +112,7 @@ func TestParseSNIList(t *testing.T) {
 // into later ones unless cleared first. clearEnvKeys
 // simulates the fresh-process env every real run actually has.
 var envKeys = []string{
-	"PORT", "XRAY_UUID", "FAKE_SNI", "WS_PATH", "WS_HOST", "TRANSPORT", "WEBHOOK_URL", "TUNNEL_TOKEN", "DEBUG_MODE", "LOG_PASSWORD",
+	"PORT", "XRAY_UUID", "FAKE_SNI", "WS_PATH", "WS_HOST", "TRANSPORT", "XHTTP_MODE", "WEBHOOK_URL", "TUNNEL_TOKEN", "DEBUG_MODE", "LOG_PASSWORD",
 	"CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID", "DOMAIN", "WORKER_PASSWORD",
 }
 
@@ -296,3 +296,110 @@ func TestCloudflareAutoDeployFieldsFromEnv(t *testing.T) {
 		t.Errorf("WorkerPassword = %q, want secret1", cfg.WorkerPassword)
 	}
 }
+
+func TestTransportParsing(t *testing.T) {
+	tests := []struct {
+		name      string
+		transport string
+		want      string
+	}{
+		{"empty defaults to websocket", "", "websocket"},
+		{"websocket is valid", "websocket", "websocket"},
+		{"ws normalizes to websocket", "ws", "websocket"},
+		{"xhttp is valid", "xhttp", "xhttp"},
+		{"h2 normalizes to xhttp", "h2", "xhttp"},
+		{"splithttp normalizes to xhttp", "splithttp", "xhttp"},
+		{"case insensitive and trimmed", "  XHTTP  ", "xhttp"},
+		{"unknown falls back to websocket", "grpc", "websocket"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			clearEnvKeys(t)
+			dir := t.TempDir()
+			oldWD, _ := os.Getwd()
+			if err := os.Chdir(dir); err != nil {
+				t.Fatal(err)
+			}
+			defer os.Chdir(oldWD)
+
+			envContent := "PORT=8888\nXRAY_UUID=x\nFAKE_SNI=a.com\nWS_PATH=/p\nWS_HOST=h\nTRANSPORT=" + tc.transport + "\n"
+			if err := os.WriteFile(".env", []byte(envContent), 0o600); err != nil {
+				t.Fatal(err)
+			}
+
+			cfg, err := Load()
+			if err != nil {
+				t.Fatalf("Load(): unexpected error: %v", err)
+			}
+			if cfg.Transport != tc.want {
+				t.Errorf("Transport = %q, want %q", cfg.Transport, tc.want)
+			}
+		})
+	}
+}
+
+func TestXHTTPModeParsing(t *testing.T) {
+	tests := []struct {
+		name string
+		mode string
+		want string
+	}{
+		{"empty defaults to auto", "", "auto"},
+		{"auto is valid", "auto", "auto"},
+		{"packet-up is valid", "packet-up", "packet-up"},
+		{"stream-up is valid", "stream-up", "stream-up"},
+		{"stream-one is valid", "stream-one", "stream-one"},
+		{"case insensitive and trimmed", "  STREAM-UP  ", "stream-up"},
+		{"unknown falls back to auto", "custom-invalid", "auto"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			clearEnvKeys(t)
+			dir := t.TempDir()
+			oldWD, _ := os.Getwd()
+			if err := os.Chdir(dir); err != nil {
+				t.Fatal(err)
+			}
+			defer os.Chdir(oldWD)
+
+			envContent := "PORT=8888\nXRAY_UUID=x\nFAKE_SNI=a.com\nWS_PATH=/p\nWS_HOST=h\nTRANSPORT=xhttp\nXHTTP_MODE=" + tc.mode + "\n"
+			if err := os.WriteFile(".env", []byte(envContent), 0o600); err != nil {
+				t.Fatal(err)
+			}
+
+			cfg, err := Load()
+			if err != nil {
+				t.Fatalf("Load(): unexpected error: %v", err)
+			}
+			if cfg.XHTTPMode != tc.want {
+				t.Errorf("XHTTPMode = %q, want %q", cfg.XHTTPMode, tc.want)
+			}
+		})
+	}
+}
+
+func TestWebhookURLParsing(t *testing.T) {
+	clearEnvKeys(t)
+	dir := t.TempDir()
+	oldWD, _ := os.Getwd()
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(oldWD)
+
+	envContent := "PORT=8888\nXRAY_UUID=x\nFAKE_SNI=a.com\nWS_PATH=/p\nWS_HOST=h\nWEBHOOK_URL=https://example.com/webhook\n"
+	if err := os.WriteFile(".env", []byte(envContent), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load(): unexpected error: %v", err)
+	}
+	if cfg.WebhookURL != "https://example.com/webhook" {
+		t.Errorf("WebhookURL = %q, want https://example.com/webhook", cfg.WebhookURL)
+	}
+}
+

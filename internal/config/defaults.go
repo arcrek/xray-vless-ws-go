@@ -8,6 +8,7 @@ const (
 	defaultWSPath      = "/tiktok4g"
 	defaultWSHost      = "trycloudflare.com"
 	defaultTransport   = "websocket"
+	defaultXHTTPMode   = "auto"
 	defaultWebhookURL  = ""
 	defaultTunnelToken = ""
 	// No defaultLogPassword const — fromEnv() falls back to a freshly
@@ -25,7 +26,10 @@ XRAY_UUID=%s
 FAKE_SNI=%s
 WS_PATH=%s
 WS_HOST=%s
+# Transport protocol: websocket (default) or xhttp (aliases: h2, splithttp)
 TRANSPORT=%s
+# XHTTP mode (used when TRANSPORT=xhttp): auto (default), packet-up, stream-up, stream-one
+XHTTP_MODE=%s
 WEBHOOK_URL=%s
 # Required whenever the embedded dashboard/log viewer is enabled (the
 # default: --log-port=9999). Generated randomly on first run so a fresh

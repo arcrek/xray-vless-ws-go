@@ -1,8 +1,7 @@
 # xray-vless-ws-go
 
-Single-binary Go server for VLESS-WS over Cloudflare Tunnel, DPI-bypass via
-Anycast/SNI decoupling.
-
+Single-binary Go server for VLESS (over WebSocket or XHTTP / HTTP/2) over
+Cloudflare Tunnel, DPI-bypass via Anycast/SNI decoupling.
 ## Architecture highlights
 
 See [`docs/architecture.md`](docs/architecture.md) for the full component
@@ -20,6 +19,9 @@ breakdown and decision log.
 - `/ready`-based tunnel health polling replaces blind `time.sleep(1)`
   restart loops.
 - Graceful shutdown on both SIGINT and SIGTERM.
+- Transport flexibility: supports both standard WebSocket (`TRANSPORT=websocket`)
+  and XHTTP / SplitHTTP (`TRANSPORT=xhttp`, aliases `h2`/`splithttp`) with
+  cleartext HTTP/2 (`h2c`) origin bridging to prevent connection starvation.
 
 ## Build
 

@@ -17,7 +17,7 @@ func TestWriteNamedTunnelConfigHasNoTunnelField(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yml")
 
-	if err := WriteNamedTunnelConfig(path, "tunnel.example.com", "127.0.0.1", 8888); err != nil {
+	if err := WriteNamedTunnelConfig(path, "tunnel.example.com", "127.0.0.1", 8888, false); err != nil {
 		t.Fatalf("WriteNamedTunnelConfig: unexpected error: %v", err)
 	}
 
@@ -35,6 +35,93 @@ func TestWriteNamedTunnelConfigHasNoTunnelField(t *testing.T) {
 	}
 	if !strings.Contains(s, "service: http://127.0.0.1:8888") {
 		t.Errorf("config.yml missing expected ingress service:\n%s", s)
+	}
+}
+
+func TestWriteNamedTunnelConfig_HTTP2Origin(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yml")
+
+	if err := WriteNamedTunnelConfig(path, "tunnel.example.com", "127.0.0.1", 8888, true); err != nil {
+		t.Fatalf("WriteNamedTunnelConfig: unexpected error: %v", err)
+	}
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading config.yml: %v", err)
+	}
+	s := string(content)
+
+	expectedOrigin := "    originRequest:\n      http2Origin: true\n"
+	if !strings.Contains(s, expectedOrigin) {
+		t.Errorf("config.yml missing expected originRequest block with http2Origin: true:\n%s", s)
+	}
+}
+
+func TestLaunchQuickTunnelHTTP2Origin(t *testing.T) {
+	binPath := buildFakeCloudflared(t)
+	workDir := t.TempDir()
+
+	// Test xhttp transport has --http2-origin
+	cfgXHTTP := testSupervisorConfig(t)
+	cfgXHTTP.Transport = "xhttp"
+	hXHTTP, err := Launch(cfgXHTTP, binPath, workDir)
+	if err != nil {
+		t.Fatalf("Launch (xhttp): unexpected error: %v", err)
+	}
+	t.Cleanup(func() { hXHTTP.Kill(); hXHTTP.Wait() })
+
+	hasHTTP2Origin := false
+	for _, a := range hXHTTP.Cmd.Args {
+		if a == "--http2-origin" {
+			hasHTTP2Origin = true
+			break
+		}
+	}
+	if !hasHTTP2Origin {
+		t.Errorf("expected '--http2-origin' in cloudflared args for xhttp, got %v", hXHTTP.Cmd.Args)
+	}
+
+	// Test websocket transport does NOT have --http2-origin
+	workDirWS := t.TempDir()
+	cfgWS := testSupervisorConfig(t)
+	cfgWS.Transport = "websocket"
+	hWS, err := Launch(cfgWS, binPath, workDirWS)
+	if err != nil {
+		t.Fatalf("Launch (ws): unexpected error: %v", err)
+	}
+	t.Cleanup(func() { hWS.Kill(); hWS.Wait() })
+
+	for _, a := range hWS.Cmd.Args {
+		if a == "--http2-origin" {
+			t.Errorf("did not expect '--http2-origin' in cloudflared args for websocket, got %v", hWS.Cmd.Args)
+		}
+	}
+}
+
+func TestLaunchNamedTunnelHTTP2Origin(t *testing.T) {
+	binPath := buildFakeCloudflared(t)
+	workDir := t.TempDir()
+
+	cfg := testSupervisorConfig(t)
+	cfg.TunnelToken = "fake-token-for-test"
+	cfg.WSHost = "tunnel.example.com"
+	cfg.Transport = "xhttp"
+
+	h, err := Launch(cfg, binPath, workDir)
+	if err != nil {
+		t.Fatalf("Launch: unexpected error: %v", err)
+	}
+	t.Cleanup(func() { h.Kill(); h.Wait() })
+
+	content, err := os.ReadFile(filepath.Join(workDir, "config.yml"))
+	if err != nil {
+		t.Fatalf("reading config.yml: %v", err)
+	}
+	s := string(content)
+	expectedOrigin := "    originRequest:\n      http2Origin: true\n"
+	if !strings.Contains(s, expectedOrigin) {
+		t.Errorf("named tunnel config.yml missing http2Origin for xhttp transport:\n%s", s)
 	}
 }
 
