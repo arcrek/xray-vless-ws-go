@@ -32,7 +32,7 @@ type Config struct {
 	WSHost string
 
 	Transport string
-
+	XHTTPMode string
 	WebhookURL string
 
 	TunnelToken string // trimmed; empty means "no named tunnel"
@@ -88,10 +88,11 @@ func fromEnv() (*Config, error) {
 		RawPort:     getenv("PORT", defaultPort),
 		XrayUUID:    getenvOrGenerate("XRAY_UUID", newUUIDv4),
 		RawFakeSNI:  getenv("FAKE_SNI", defaultFakeSNI),
-		WSPath:      getenv("WS_PATH", defaultWSPath),
-		WSHost:      getenv("WS_HOST", defaultWSHost),
+		WSPath:      strings.TrimSpace(getenv("WS_PATH", defaultWSPath)),
+		WSHost:      strings.TrimSpace(getenv("WS_HOST", defaultWSHost)),
 		Transport:   strings.ToLower(strings.TrimSpace(getenv("TRANSPORT", defaultTransport))),
-		WebhookURL:  getenv("WEBHOOK_URL", defaultWebhookURL),
+		XHTTPMode:   strings.ToLower(strings.TrimSpace(getenv("XHTTP_MODE", defaultXHTTPMode))),
+		WebhookURL:  strings.TrimSpace(getenv("WEBHOOK_URL", defaultWebhookURL)),
 		TunnelToken: strings.TrimSpace(getenv("TUNNEL_TOKEN", defaultTunnelToken)),
 		DebugMode:   strings.ToLower(strings.TrimSpace(os.Getenv("DEBUG_MODE"))) == "true",
 		// Falls back to a freshly generated random secret, not
@@ -113,17 +114,18 @@ func fromEnv() (*Config, error) {
 		WorkerPassword:      getenvOrGenerate("WORKER_PASSWORD", func() string { return newSecretToken(24) }),
 	}
 
-	// TRANSPORT: only "websocket" is supported in v1. xhttp is
-	// force-downgraded with a warning — the field stays rather than being
-	// dropped, since a user's existing .env may already set it and
-	// silently ignoring the key entirely would be a worse surprise than a
-	// logged downgrade.
+	switch cfg.XHTTPMode {
+	case "auto", "packet-up", "stream-up", "stream-one":
+		// valid
+	default:
+		cfg.XHTTPMode = defaultXHTTPMode
+	}
+
 	switch cfg.Transport {
-	case "websocket":
-		// ok
-	case "xhttp":
-		fmt.Fprintln(os.Stderr, "[!] TRANSPORT=xhttp is temporarily disabled, falling back to 'websocket'.")
+	case "", "websocket", "ws":
 		cfg.Transport = "websocket"
+	case "xhttp", "h2", "splithttp":
+		cfg.Transport = "xhttp"
 	default:
 		fmt.Fprintf(os.Stderr, "[!] Unknown TRANSPORT %q, falling back to 'websocket'.\n", cfg.Transport)
 		cfg.Transport = "websocket"
@@ -180,6 +182,7 @@ func writeDefaultEnvFile(path string) error {
 		defaultWSPath,
 		defaultWSHost,
 		defaultTransport,
+		defaultXHTTPMode,
 		defaultWebhookURL,
 		newSecretToken(24), // LOG_PASSWORD
 		defaultTunnelToken,

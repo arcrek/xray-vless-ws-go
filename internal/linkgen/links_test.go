@@ -94,3 +94,51 @@ func TestSafeQuoteEncoding(t *testing.T) {
 		}
 	}
 }
+
+func TestBuildLinks_XHTTP(t *testing.T) {
+	sni, err := config.ParseSNIList("api24-normal-alisg.tiktokv.com#Tiktok")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := &config.Config{
+		WSPath:    "/tiktok4g",
+		WSHost:    "trycloudflare.com",
+		FakeSNI:   sni,
+		Transport: "xhttp",
+		XHTTPMode: "auto",
+	}
+
+	got := BuildLinks(cfg, "5ccad305-e243-4bb2-abf0-1e37189ce4e8", "my-tunnel.trycloudflare.com")
+	if len(got) != 2 {
+		t.Fatalf("expected 2 links, got %d", len(got))
+	}
+
+	tlsLink := got[0]
+	noTLSLink := got[1]
+
+	if !strings.Contains(tlsLink, "type=xhttp") {
+		t.Errorf("tlsLink missing type=xhttp: %s", tlsLink)
+	}
+	if !strings.Contains(tlsLink, "&alpn=h2") {
+		t.Errorf("tlsLink missing &alpn=h2: %s", tlsLink)
+	}
+	if !strings.Contains(tlsLink, "&mode=auto") {
+		t.Errorf("tlsLink missing &mode=auto: %s", tlsLink)
+	}
+	if strings.Contains(tlsLink, "ed=2048") {
+		t.Errorf("tlsLink should not contain ed=2048: %s", tlsLink)
+	}
+
+	if !strings.Contains(noTLSLink, "type=xhttp") {
+		t.Errorf("noTLSLink missing type=xhttp: %s", noTLSLink)
+	}
+	if strings.Contains(noTLSLink, "alpn=") {
+		t.Errorf("noTLSLink should not contain alpn: %s", noTLSLink)
+	}
+	if !strings.Contains(noTLSLink, "&mode=auto") {
+		t.Errorf("noTLSLink missing &mode=auto: %s", noTLSLink)
+	}
+	if strings.Contains(noTLSLink, "ed=2048") {
+		t.Errorf("noTLSLink should not contain ed=2048: %s", noTLSLink)
+	}
+}

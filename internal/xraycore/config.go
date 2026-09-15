@@ -46,17 +46,34 @@ func BuildConfig(cfg *config.Config) ([]byte, error) {
 				},
 				"decryption": "none",
 			},
-			"streamSettings": map[string]any{
-				"network":  "ws",
-				"security": "none",
-				"wsSettings": map[string]any{
-					"path":                cfg.WSPath,
-					"headers":             map[string]string{},
-					"heartbeatPeriod":     10,
-					"maxEarlyData":        2048,
-					"earlyDataHeaderName": "Sec-WebSocket-Protocol",
-				},
-			},
+			"streamSettings": func() map[string]any {
+				if cfg.Transport == "xhttp" {
+					mode := cfg.XHTTPMode
+					if mode == "" {
+						mode = "auto"
+					}
+					return map[string]any{
+						"network":  "xhttp",
+						"security": "none",
+						"xhttpSettings": map[string]any{
+							"path": cfg.WSPath,
+							"host": "",
+							"mode": mode,
+						},
+					}
+				}
+				return map[string]any{
+					"network":  "ws",
+					"security": "none",
+					"wsSettings": map[string]any{
+						"path":                cfg.WSPath,
+						"headers":             map[string]string{},
+						"heartbeatPeriod":     10,
+						"maxEarlyData":        2048,
+						"earlyDataHeaderName": "Sec-WebSocket-Protocol",
+					},
+				}
+			}(),
 		})
 	}
 

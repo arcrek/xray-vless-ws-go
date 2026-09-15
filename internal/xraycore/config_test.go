@@ -2,6 +2,7 @@ package xraycore
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/arcrek/xray-vless-ws-go/internal/config"
@@ -165,4 +166,57 @@ func TestBuildConfigRejectsEmptyPorts(t *testing.T) {
 	if _, err := BuildConfig(cfg); err == nil {
 		t.Fatal("BuildConfig: expected error for config with no ports, got nil")
 	}
+}
+
+func TestBuildConfigXHTTPShape(t *testing.T) {
+	cfg := testConfig(t)
+	cfg.Transport = "xhttp"
+	cfg.XHTTPMode = "auto"
+
+	raw, err := BuildConfig(cfg)
+	if err != nil {
+		t.Fatalf("BuildConfig: unexpected error: %v", err)
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		t.Fatalf("BuildConfig produced invalid JSON: %v", err)
+	}
+	inbounds, ok := decoded["inbounds"].([]any)
+	if !ok || len(inbounds) != 2 {
+		t.Fatalf("expected 2 inbounds, got %#v", decoded["inbounds"])
+	}
+
+	first := inbounds[0].(map[string]any)
+	stream := first["streamSettings"].(map[string]any)
+	if stream["network"] != "xhttp" {
+		t.Errorf("streamSettings.network = %v, want xhttp", stream["network"])
+	}
+	xhttp, ok := stream["xhttpSettings"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected xhttpSettings map, got %#v", stream["xhttpSettings"])
+	}
+	if xhttp["path"] != "/tiktok4g" {
+		t.Errorf("xhttpSettings.path = %v, want /tiktok4g", xhttp["path"])
+	}
+	if xhttp["mode"] != "auto" {
+		t.Errorf("xhttpSettings.mode = %v, want auto", xhttp["mode"])
+	}
+
+	// Verify that xray-core engine accepts the JSON configuration and starts.
+	port := freeTestPort(t)
+	ports, err := config.ParsePorts(fmt.Sprintf("127.0.0.1:%d", port))
+	if err != nil {
+		t.Fatalf("ParsePorts: %v", err)
+	}
+	cfg.Ports = ports
+	rawWithPort, err := BuildConfig(cfg)
+	if err != nil {
+		t.Fatalf("BuildConfig with test port: %v", err)
+	}
+	engine, err := New(rawWithPort, nil)
+	if err != nil {
+		t.Fatalf("xraycore.New failed for xhttp config: %v", err)
+	}
+	defer engine.Close()
 }

@@ -15,8 +15,8 @@ package xraycore
 //   - proxy/vless/inbound: the only inbound protocol this project uses.
 //   - proxy/freedom: the only outbound protocol this project uses (WARP's
 //     wireguard outbound is dropped per plan decision log #5).
-//   - transport/internet/websocket: the only transport this project uses
-//     (TRANSPORT is force-downgraded to "websocket" in internal/config).
+//   - transport/internet/websocket and transport/internet/splithttp: the transports
+//     this project uses (TRANSPORT=websocket or TRANSPORT=xhttp/h2/splithttp).
 //   - main/json: registers the "JSON" config format core.StartInstance("JSON", ...) needs.
 //
 // app/policy and app/stats are already initialized transitively (via
@@ -35,5 +35,7 @@ import (
 	_ "github.com/xtls/xray-core/main/json"
 	_ "github.com/xtls/xray-core/proxy/freedom"
 	_ "github.com/xtls/xray-core/proxy/vless/inbound"
+	_ "github.com/xtls/xray-core/transport/internet/splithttp"
 	_ "github.com/xtls/xray-core/transport/internet/websocket"
 )
+

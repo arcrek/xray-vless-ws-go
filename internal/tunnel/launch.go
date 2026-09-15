@@ -54,9 +54,11 @@ func Launch(cfg *config.Config, binPath, workDir string) (*Handle, error) {
 	var cmd *exec.Cmd
 	named := cfg.TunnelToken != ""
 
+	http2Origin := cfg.Transport == "xhttp"
+
 	if named {
 		configPath := filepath.Join(workDir, "config.yml")
-		if err := WriteNamedTunnelConfig(configPath, cfg.WSHost, cfg.TargetIP, cfg.TargetPort); err != nil {
+		if err := WriteNamedTunnelConfig(configPath, cfg.WSHost, cfg.TargetIP, cfg.TargetPort, http2Origin); err != nil {
 			return nil, fmt.Errorf("tunnel: writing config.yml: %w", err)
 		}
 		fmt.Println("[*] Launching Cloudflare Tunnel (named tunnel via config.yml)...")
@@ -73,13 +75,19 @@ func Launch(cfg *config.Config, binPath, workDir string) (*Handle, error) {
 			"run", "--token", cfg.TunnelToken)
 	} else {
 		fmt.Printf("[*] Launching Cloudflare Tunnel pointing to http://%s:%d...\n", cfg.TargetIP, cfg.TargetPort)
-		cmd = exec.Command(binPath, "tunnel",
+		args := []string{
+			"tunnel",
 			"--protocol", "http2",
 			"--no-autoupdate",
 			"--edge-ip-version", "auto",
 			"--grace-period", "30s",
 			"--metrics", metricsAddr,
-			"--url", fmt.Sprintf("http://%s:%d", cfg.TargetIP, cfg.TargetPort))
+		}
+		if http2Origin {
+			args = append(args, "--http2-origin")
+		}
+		args = append(args, "--url", fmt.Sprintf("http://%s:%d", cfg.TargetIP, cfg.TargetPort))
+		cmd = exec.Command(binPath, args...)
 	}
 	cmd.Dir = workDir
 

@@ -20,6 +20,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"net/http"
 	"time"
 
 	"github.com/arcrek/xray-vless-ws-go/internal/config"
@@ -150,6 +151,47 @@ func run() error {
 		return fmt.Errorf("port %d not released after Close: %w", xrayPort, err)
 	}
 	ln2.Close()
+
+	// 7. Verify XHTTP engine instance starts, binds, and actively accepts connections.
+	cfgXHTTP := &config.Config{
+		Ports:     []config.InboundAddr{{ListenIP: "127.0.0.1", Port: xrayPort}},
+		XrayUUID:  uuidStr,
+		WSPath:    "/smoketest",
+		Transport: "xhttp",
+		XHTTPMode: "auto",
+	}
+	cfgBytesXHTTP, err := xraycore.BuildConfig(cfgXHTTP)
+	if err != nil {
+		return fmt.Errorf("BuildConfig (xhttp): %w", err)
+	}
+	cfgBytesXHTTP, err = allowPrivateIPsForSmokeTest(cfgBytesXHTTP)
+	if err != nil {
+		return fmt.Errorf("patching xhttp config for smoke test: %w", err)
+	}
+	engineXHTTP, err := xraycore.New(cfgBytesXHTTP, nil)
+	if err != nil {
+		return fmt.Errorf("xraycore.New (xhttp): %w", err)
+	}
+
+	// Verify listener is bound and accepting TCP handshakes.
+	xhttpAddr := fmt.Sprintf("127.0.0.1:%d", xrayPort)
+	tcpConn, err := net.DialTimeout("tcp", xhttpAddr, 2*time.Second)
+	if err != nil {
+		_ = engineXHTTP.Close()
+		return fmt.Errorf("xhttp listener failed to accept TCP connection: %w", err)
+	}
+	_ = tcpConn.Close()
+
+	// Probe HTTP path handling on the XHTTP listener.
+	client := &http.Client{Timeout: 2 * time.Second}
+	resp, err := client.Get(fmt.Sprintf("http://%s/smoketest", xhttpAddr))
+	if err == nil {
+		_ = resp.Body.Close()
+	}
+
+	if err := engineXHTTP.Close(); err != nil {
+		return fmt.Errorf("engineXHTTP.Close: %w", err)
+	}
 
 	return nil
 }

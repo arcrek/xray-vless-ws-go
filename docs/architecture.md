@@ -133,7 +133,8 @@ See `.env.example` for the full annotated template. Summary:
 | `FAKE_SNI` | `api24-normal-alisg.tiktokv.com#Tiktok` | Comma-separated `sni#remark` list |
 | `WS_PATH` | `/tiktok4g` | WebSocket path |
 | `WS_HOST` | `trycloudflare.com` | Overridden by the detected quick-tunnel hostname unless a named tunnel is configured |
-| `TRANSPORT` | `websocket` | Only `websocket` is supported in v1 |
+| `TRANSPORT` | `websocket` | Transport protocol: `websocket` (default) or `xhttp` (aliases: `h2`, `splithttp`) |
+| `XHTTP_MODE` | `auto` | XHTTP streaming mode: `auto` (default), `packet-up`, `stream-up`, `stream-one` |
 | `WEBHOOK_URL` | `""` | Overwritten automatically when cfdeploy is active |
 | `TUNNEL_TOKEN` | `""` | Set for a named (production) tunnel; leave blank for a quick tunnel |
 | `CLOUDFLARE_API_TOKEN` | `""` (feature off) | Enables the Worker bridge auto-deploy — see permissions below |
@@ -150,6 +151,30 @@ See `.env.example` for the full annotated template. Summary:
 | Workers KV Storage | Account | Edit |
 | Workers Routes | Zone | Edit |
 | Zone | Zone | Read |
+
+
+## Decision log — XHTTP / H2 Transport Integration
+
+Full plan: `plans/260915-0811-xhttp-h2-support/` (red-teamed, validated, implemented 2026-09-15).
+
+### Context & Root Cause Analysis
+
+In the upstream reference Python implementation (`xray_vless_ws_server`), XHTTP (SplitHTTP) was temporarily disabled in commit `b50cf7f` because it suffered instability behind Cloudflare Tunnel. Root-cause analysis revealed two issues:
+1. `cloudflared` connected to the local origin via HTTP/1.1 by default, causing connection pool starvation and timeouts on chunked uplink/streaming.
+2. Cloudflare Worker scripts did not forward session-id subpaths (`/path/{sessionId}`) or stream request bodies cleanly.
+
+### Solution
+
+1. **Configuration**:
+   `TRANSPORT=xhttp` (aliases `h2`, `splithttp`) and `XHTTP_MODE=auto` (`packet-up`, `stream-up`, `stream-one`) added to `internal/config`.
+2. **Inbound stream settings**:
+   `internal/xraycore` constructs `xhttpSettings` (`network: "xhttp"`, `mode: cfg.XHTTPMode`) for VLESS inbounds when `cfg.Transport == "xhttp"`.
+3. **HTTP/2 origin bridging**:
+   `internal/tunnel` supplies `--http2-origin` on Quick Tunnel and `originRequest.http2Origin: true` in `config.yml` on Named Tunnel, ensuring `cloudflared` dials local Xray via cleartext HTTP/2 (`h2c`).
+4. **Client links**:
+   `internal/linkgen` generates `vless://` URLs formatted with `type=xhttp&mode=<mode>` without `ed=2048` parameters.
+5. **Worker bridge dual proxying**:
+   `internal/cfdeploy/assets/worker.js` handles WebSocket upgrades and forwards XHTTP session requests preserving subpaths with `duplex: "half"`.
 
 ## Decision log — system dashboard (`internal/logserver` /stats)
 
